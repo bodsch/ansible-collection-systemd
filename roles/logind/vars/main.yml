@@ -1,0 +1,32 @@
+---
+
+systemd_defaults_logind: {}
+  n_auto_vt: 6
+  reserve_vt: 6
+  kill_user_processes: false
+  kill_only_users:
+  kill_exclude_users: root
+  inhibit_delay_max_sec: 5
+  user_stop_delay_sec: 10
+  handle_power_key: poweroff
+  handle_suspend_key: suspend
+  handle_hibernate_key: hibernate
+  handle_lid_switch: suspend
+  handle_lid_switch_external_power: suspend
+  handle_lid_switch_docked: ignore
+  handle_reboot_key: reboot
+  power_key_ignore_inhibited: false
+  suspend_key_ignore_inhibited: false
+  hibernate_key_ignore_inhibited: false
+  lid_switch_ignore_inhibited: true
+  reboot_key_ignore_inhibited: false
+  holdoff_timeout_sec: 30s
+  idle_action: ignore
+  idle_action_sec: 30min
+  runtime_directory_size: 10%
+  runtime_directory_inodes: 400k
+  remove_ipc: true
+  inhibitors_max: 8192
+  sessions_max: 8192
+
+...
