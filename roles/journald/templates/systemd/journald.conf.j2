@@ -1,0 +1,146 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# {{ ansible_managed }}
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU Lesser General Public License as published by
+#  the Free Software Foundation; either version 2.1 of the License, or
+#  (at your option) any later version.
+#
+# Entries in this file show the compile time defaults.
+# You can change settings by editing this file.
+# Defaults can be restored by simply deleting this file.
+#
+# See journald.conf(5) for details.
+
+[Journal]
+{% if systemd_journald.storage is defined and
+      systemd_journald.storage | string | length > 0 and
+      systemd_journald.storage in ["volatile", "persistent", "auto", "none"] %}
+Storage               = {{ systemd_journald.storage }}
+{% endif %}
+{% if systemd_journald.compress is defined and
+      systemd_journald.compress | string | length > 0 and
+      systemd_journald.compress %}
+Compress              = yes
+{% endif %}
+{% if systemd_journald.seal is defined and
+      systemd_journald.seal | string | length > 0 and
+      systemd_journald.seal %}
+Seal                  = yes
+{% endif %}
+{% if systemd_journald.split_mode is defined and
+      systemd_journald.split_mode | string | length > 0 and
+      systemd_journald.split_mode in ["uid", "none"] %}
+SplitMode             = {{ systemd_journald.split_mode }}
+{% endif %}
+{% if systemd_journald.sync_interval_sec is defined and
+      systemd_journald.sync_interval_sec | string | length > 0 %}
+SyncIntervalSec       = {{ systemd_journald.sync_interval_sec }}
+{% endif %}
+{% if systemd_journald.rate_limit_interval_sec is defined and
+      systemd_journald.rate_limit_interval_sec | string | length > 0 %}
+RateLimitIntervalSec  = {{ systemd_journald.rate_limit_interval_sec }}
+{% endif %}
+{% if systemd_journald.rate_limit_burst is defined and
+      systemd_journald.rate_limit_burst | string | length > 0 %}
+RateLimitBurst        = {{ systemd_journald.rate_limit_burst }}
+{% endif %}
+{% if systemd_journald.system_max_use is defined and
+      systemd_journald.system_max_use | string | length > 0 %}
+SystemMaxUse          = {{ systemd_journald.system_max_use }}
+{% endif %}
+{% if systemd_journald.system_keep_free is defined and
+      systemd_journald.system_keep_free | string | length > 0 %}
+SystemKeepFree        = {{ systemd_journald.system_keep_free }}
+{% endif %}
+{% if systemd_journald.system_max_file_size is defined and
+      systemd_journald.system_max_file_size | string | length > 0 %}
+SystemMaxFileSize     = {{ systemd_journald.system_max_file_size }}
+{% endif %}
+{% if systemd_journald.system_max_files is defined and
+      systemd_journald.system_max_files | string | length > 0 %}
+SystemMaxFiles        = {{ systemd_journald.system_max_files }}
+{% endif %}
+{% if systemd_journald.runtime_max_use is defined and
+      systemd_journald.runtime_max_use | string | length > 0 %}
+RuntimeMaxUse         = {{ systemd_journald.runtime_max_use }}
+{% endif %}
+{% if systemd_journald.runtime_keep_free is defined and
+      systemd_journald.runtime_keep_free | string | length > 0 %}
+RuntimeKeepFree       = {{ systemd_journald.runtime_keep_free }}
+{% endif %}
+{% if systemd_journald.runtime_max_file_size is defined and
+      systemd_journald.runtime_max_file_size | string | length > 0 %}
+RuntimeMaxFileSize    = {{ systemd_journald.runtime_max_file_size }}
+{% endif %}
+{% if systemd_journald.runtime_max_files is defined and
+      systemd_journald.runtime_max_files | string | length > 0 %}
+RuntimeMaxFiles       = {{ systemd_journald.runtime_max_files }}
+{% endif %}
+{% if systemd_journald.max_retention_sec is defined and
+      systemd_journald.max_retention_sec | string | length > 0 %}
+MaxRetentionSec       = {{ systemd_journald.max_retention_sec }}
+{% endif %}
+{% if systemd_journald.max_file_sec is defined and
+      systemd_journald.max_file_sec | string | length > 0 %}
+MaxFileSec            = {{ systemd_journald.max_file_sec }}
+{% endif %}
+{% if systemd_journald.forward_to_syslog is defined and
+      systemd_journald.forward_to_syslog | string | length > 0 %}
+ForwardToSyslog       = {{ systemd_journald.forward_to_syslog | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_journald.forward_to_kmsg is defined and
+      systemd_journald.forward_to_kmsg | string | length > 0 %}
+ForwardToKMsg         = {{ systemd_journald.forward_to_kmsg | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_journald.forward_to_console is defined and
+      systemd_journald.forward_to_console | string | length > 0 %}
+ForwardToConsole      = {{ systemd_journald.forward_to_console | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_journald.forward_to_wall is defined and
+      systemd_journald.forward_to_wall | string | length > 0 %}
+ForwardToWall         = {{ systemd_journald.forward_to_wall | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_journald.tty_path is defined and
+      systemd_journald.tty_path | string | length > 0 %}
+TTYPath               = {{ systemd_journald.tty_path }}
+{% endif %}
+{% if systemd_journald.max_level_store is defined and
+      systemd_journald.max_level_store | string | length > 0 and
+      systemd_journald.max_level_store in ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] %}
+MaxLevelStore         = {{ systemd_journald.max_level_store }}
+{% endif %}
+{% if systemd_journald.max_level_syslog is defined and
+      systemd_journald.max_level_syslog | string | length > 0 and
+      systemd_journald.max_level_syslog in ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] %}
+MaxLevelSyslog        = {{ systemd_journald.max_level_syslog }}
+{% endif %}
+{% if systemd_journald.max_level_kmsg is defined and
+      systemd_journald.max_level_kmsg | string | length > 0 and
+      systemd_journald.max_level_kmsg in ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] %}
+MaxLevelKMsg          = {{ systemd_journald.max_level_kmsg }}
+{% endif %}
+{% if systemd_journald.max_level_console is defined and
+      systemd_journald.max_level_console | string | length > 0 and
+      systemd_journald.max_level_console in ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] %}
+MaxLevelConsole       = {{ systemd_journald.max_level_console }}
+{% endif %}
+{% if systemd_journald.max_level_wall is defined and
+      systemd_journald.max_level_wall | string | length > 0 and
+      systemd_journald.max_level_wall in ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"] %}
+MaxLevelWall          = {{ systemd_journald.max_level_wall }}
+{% endif %}
+{% if systemd_journald.line_max is defined and
+      systemd_journald.line_max | string | length > 0 %}
+LineMax               = {{ systemd_journald.line_max }}
+{% endif %}
+{% if systemd_journald.read_kmsg is defined and
+      systemd_journald.read_kmsg | string | length > 0 %}
+ReadKMsg              = {{ systemd_journald.read_kmsg | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_journald.audit is defined and
+      systemd_journald.audit | string | length > 0 %}
+Audit                 = {{ systemd_journald.audit | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}

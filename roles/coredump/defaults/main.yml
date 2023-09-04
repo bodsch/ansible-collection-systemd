@@ -1,0 +1,12 @@
+---
+
+systemd_coredump: {}
+  # storage: ""
+  # compress: ""
+  # process_size_max: ""
+  # external_size_max: ""
+  # journal_size_max: ""
+  # max_use: ""
+  # keep_free: ""
+
+...

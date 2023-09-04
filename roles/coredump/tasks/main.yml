@@ -1,0 +1,15 @@
+---
+
+- name: merge systemd coredump configuration between defaults and custom
+  ansible.builtin.set_fact:
+    systemd_coredump: "{{ systemd_defaults_coredump | combine(systemd_coredump, recursive=True) }}"
+
+- name: create systemd coredump configuration
+  ansible.builtin.template:
+    src: systemd/coredump.conf.j2
+    dest: /etc/systemd/coredump.conf
+    mode: 0644
+    owner: root
+    group: root
+
+...
