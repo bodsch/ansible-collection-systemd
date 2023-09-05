@@ -15,30 +15,118 @@
 # See logind.conf(5) for details.
 
 [Login]
-#NAutoVTs=6
-#ReserveVT=6
-#KillUserProcesses=no
-#KillOnlyUsers=
-#KillExcludeUsers=root
-#InhibitDelayMaxSec=5
-#UserStopDelaySec=10
-#HandlePowerKey=poweroff
-#HandleSuspendKey=suspend
-#HandleHibernateKey=hibernate
-#HandleLidSwitch=suspend
-#HandleLidSwitchExternalPower=suspend
-#HandleLidSwitchDocked=ignore
-#HandleRebootKey=reboot
-#PowerKeyIgnoreInhibited=no
-#SuspendKeyIgnoreInhibited=no
-#HibernateKeyIgnoreInhibited=no
-#LidSwitchIgnoreInhibited=yes
-#RebootKeyIgnoreInhibited=no
-#HoldoffTimeoutSec=30s
-#IdleAction=ignore
-#IdleActionSec=30min
-#RuntimeDirectorySize=10%
-#RuntimeDirectoryInodes=400k
-#RemoveIPC=yes
-#InhibitorsMax=8192
-#SessionsMax=8192
+{% if systemd_logind.n_auto_vt is defined and
+      systemd_logind.n_auto_vt | string | length > 0 %}
+NAutoVTs                      = {{ systemd_journald.n_auto_vt }}
+{% endif %}
+{% if systemd_logind.reserve_vt is defined and
+      systemd_logind.reserve_vt | string | length > 0 %}
+ReserveVT                     = {{ systemd_journald.reserve_vt }}
+{% endif %}
+{% if systemd_logind.kill_user_processes is defined and
+      systemd_logind.kill_user_processes | string | length > 0 %}
+KillUserProcesses             = {{ systemd_logind.kill_user_processes | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_logind.kill_only_users is defined and
+      systemd_logind.kill_only_users | string | length > 0 %}
+KillOnlyUsers                 = {{ systemd_journald.kill_only_users }}
+{% endif %}
+{% if systemd_logind.kill_exclude_users is defined and
+      systemd_logind.kill_exclude_users | string | length > 0 %}
+KillExcludeUsers              = {{ systemd_journald.kill_exclude_users }}
+{% endif %}
+{% if systemd_logind.inhibit_delay_max_sec is defined and
+      systemd_logind.inhibit_delay_max_sec | string | length > 0 %}
+InhibitDelayMaxSec            = {{ systemd_journald.inhibit_delay_max_sec }}
+{% endif %}
+{% if systemd_logind.user_stop_delay_sec is defined and
+      systemd_logind.user_stop_delay_sec | string | length > 0 %}
+UserStopDelaySec              = {{ systemd_journald.user_stop_delay_sec }}
+{% endif %}
+{% if systemd_logind.handle_power_key is defined and
+      systemd_logind.handle_power_key | string | length > 0 and
+      systemd_logind.handle_power_key in ["ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "suspend-then-hibernate", "lock", "factory-reset"] %}
+HandlePowerKey                = {{ systemd_logind.handle_power_key }}
+{% endif %}
+{% if systemd_logind.handle_suspend_key is defined and
+      systemd_logind.handle_suspend_key | string | length > 0 and
+      systemd_logind.handle_suspend_key in ["ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "suspend-then-hibernate", "lock", "factory-reset"] %}
+HandleSuspendKey              = {{ systemd_logind.handle_suspend_key }}
+{% endif %}
+{% if systemd_logind.handle_hibernate_key is defined and
+      systemd_logind.handle_hibernate_key | string | length > 0 and
+      systemd_logind.handle_hibernate_key in ["ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "suspend-then-hibernate", "lock", "factory-reset"] %}
+HandleHibernateKey            = {{ systemd_logind.handle_hibernate_key }}
+{% endif %}
+{% if systemd_logind.handle_lid_switch is defined and
+      systemd_logind.handle_lid_switch | string | length > 0 and
+      systemd_logind.handle_lid_switch in ["ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "suspend-then-hibernate", "lock", "factory-reset"] %}
+HandleLidSwitch               = {{ systemd_logind.handle_lid_switch }}
+{% endif %}
+{% if systemd_logind.handle_lid_switch_external_power is defined and
+      systemd_logind.handle_lid_switch_external_power | string | length > 0 %}
+HandleLidSwitchExternalPower  = suspend
+{% endif %}
+{% if systemd_logind.handle_lid_switch_docked is defined and
+      systemd_logind.handle_lid_switch_docked | string | length > 0 and
+      systemd_logind.handle_lid_switch_docked in ["ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "suspend-then-hibernate", "lock", "factory-reset"] %}
+HandleLidSwitchDocked         = {{ systemd_logind.handle_lid_switch_docked }}
+{% endif %}
+{% if systemd_logind.handle_reboot_key is defined and
+      systemd_logind.handle_reboot_key | string | length > 0 and
+      systemd_logind.handle_reboot_key in ["ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "suspend-then-hibernate", "lock", "factory-reset"] %}
+HandleRebootKey               = {{ systemd_logind.handle_reboot_key }}
+{% endif %}
+{% if systemd_logind.power_key_ignore_inhibited is defined and
+      systemd_logind.power_key_ignore_inhibited | string | length > 0 %}
+PowerKeyIgnoreInhibited       = {{ systemd_logind.power_key_ignore_inhibited | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_logind.suspend_key_ignore_inhibited is defined and
+      systemd_logind.suspend_key_ignore_inhibited | string | length > 0 %}
+SuspendKeyIgnoreInhibited     = {{ systemd_logind.suspend_key_ignore_inhibited | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_logind.hibernate_key_ignore_inhibited is defined and
+      systemd_logind.hibernate_key_ignore_inhibited | string | length > 0 %}
+HibernateKeyIgnoreInhibited   = {{ systemd_logind.hibernate_key_ignore_inhibited | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_logind.lid_switch_ignore_inhibited is defined and
+      systemd_logind.lid_switch_ignore_inhibited | string | length > 0 %}
+LidSwitchIgnoreInhibited      = {{ systemd_logind.lid_switch_ignore_inhibited | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_logind.reboot_key_ignore_inhibited is defined and
+      systemd_logind.reboot_key_ignore_inhibited | string | length > 0 %}
+RebootKeyIgnoreInhibited      = {{ systemd_logind.reboot_key_ignore_inhibited | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_logind.holdoff_timeout_sec is defined and
+      systemd_logind.holdoff_timeout_sec | string | length > 0 %}
+HoldoffTimeoutSec             = {{ systemd_logind.holdoff_timeout_sec }}
+{% endif %}
+{% if systemd_logind.idle_action is defined and
+      systemd_logind.idle_action | string | length > 0 and
+      systemd_logind.idle_action in ["ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "suspend-then-hibernate", "lock"] %}
+IdleAction                    = {{ systemd_logind.idle_action }}
+{% endif %}
+{% if systemd_logind.idle_action_sec is defined and
+      systemd_logind.idle_action_sec | string | length > 0 %}
+IdleActionSec                 = {{ systemd_logind.idle_action_sec }}
+{% endif %}
+{% if systemd_logind.runtime_directory_size is defined and
+      systemd_logind.runtime_directory_size | string | length > 0 %}
+RuntimeDirectorySize          = {{ systemd_logind.runtime_directory_size }}
+{% endif %}
+{% if systemd_logind.runtime_directory_inodes is defined and
+      systemd_logind.runtime_directory_inodes | string | length > 0 %}
+RuntimeDirectoryInodes        = {{ systemd_logind.runtime_directory_inodes }}
+{% endif %}
+{% if systemd_logind.remove_ipc is defined and
+      systemd_logind.remove_ipc | string | length > 0 %}
+RemoveIPC                     = {{ systemd_logind.runtime_directory_inodes | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_logind.inhibitors_max is defined and
+      systemd_logind.inhibitors_max | string | length > 0 %}
+InhibitorsMax                 = {{ systemd_logind.inhibitors_max }}
+{% endif %}
+{% if systemd_logind.sessions_max is defined and
+      systemd_logind.sessions_max | string | length > 0 %}
+SessionsMax                   = {{ systemd_logind.sessions_max }}
+{% endif %}

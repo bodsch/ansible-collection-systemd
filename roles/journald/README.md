@@ -1,3 +1,2 @@
 
-
-# https://www.freedesktop.org/software/systemd/man/journald.conf.html
+# https://www.freedesktop.org/software/systemd/man/logind.conf.html  
