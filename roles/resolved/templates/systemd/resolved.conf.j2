@@ -1,0 +1,98 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# {{ ansible_managed }}
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it under the
+#  terms of the GNU Lesser General Public License as published by the Free
+#  Software Foundation; either version 2.1 of the License, or (at your option)
+#  any later version.
+#
+# Entries in this file show the compile time defaults. Local configuration
+# should be created by either modifying this file, or by creating "drop-ins" in
+# the resolved.conf.d/ subdirectory. The latter is generally recommended.
+# Defaults can be restored by simply deleting this file and all drop-ins.
+#
+# Use 'systemd-analyze cat-config systemd/resolved.conf' to display the full config.
+#
+# See resolved.conf(5) for details.
+
+[Resolve]
+{% if systemd_resolved.dns is defined and
+      systemd_resolved.dns | count > 0 %}
+DNS                           = {{ systemd_resolved.dns | join(' ') }}
+{% endif %}
+{% if systemd_resolved.fallback_dns is defined and
+      systemd_resolved.fallback_dns | count > 0 %}
+FallbackDNS                   = {{ systemd_resolved.fallback_dns | join(' ') }}
+{% endif %}
+{% if systemd_resolved.domains is defined and
+      systemd_resolved.domains | count > 0 %}
+Domains                       = {{ systemd_resolved.domains | join(' ') }}
+{% endif %}
+{% if systemd_resolved.dns_sec is defined and
+      systemd_resolved.dns_sec | string | length > 0 %}
+  {% if systemd_resolved.dns_sec | bodsch.core.type == "bool" %}
+DNSSEC                        = {{ systemd_resolved.dns_sec | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+  {% elif systemd_resolved.dns_sec in ["allow-downgrade"] %}
+DNSSEC                        = {{ systemd_resolved.dns_sec }}
+  {% endif %}
+{% endif %}
+{% if systemd_resolved.dns_over_tls is defined and
+      systemd_resolved.dns_over_tls | string | length > 0 %}
+  {% if systemd_resolved.dns_over_tls | bodsch.core.type == "bool" %}
+DNSOverTLS                    = {{ systemd_resolved.dns_over_tls | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+  {% elif systemd_resolved.dns_over_tls in ["opportunistic"] %}
+DNSOverTLS                    = {{ systemd_resolved.dns_over_tls }}
+  {% endif %}
+{% endif %}
+{% if systemd_resolved.multicast_dns is defined and
+      systemd_resolved.multicast_dns | string | length > 0 %}
+  {% if systemd_resolved.multicast_dns | bodsch.core.type == "bool" %}
+MulticastDNS                  = {{ systemd_resolved.multicast_dns | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+  {% elif systemd_resolved.multicast_dns in ["resolve"] %}
+MulticastDNS                  = {{ systemd_resolved.multicast_dns }}
+  {% endif %}
+{% endif %}
+{% if systemd_resolved.llmnr is defined and
+      systemd_resolved.llmnr | string | length > 0 %}
+  {% if systemd_resolved.llmnr | bodsch.core.type == "bool" %}
+LLMNR                         = {{ systemd_resolved.llmnr | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+  {% elif systemd_resolved.llmnr in ["resolve"] %}
+LLMNR                         = {{ systemd_resolved.llmnr }}
+  {% endif %}
+{% endif %}
+{% if systemd_resolved.cache is defined and
+      systemd_resolved.cache | string | length > 0 %}
+  {% if systemd_resolved.cache | bodsch.core.type == "bool" %}
+Cache                         = {{ systemd_resolved.cache | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+  {% elif systemd_resolved.cache in ["no-negative"] %}
+Cache                         = {{ systemd_resolved.cache }}
+  {% endif %}
+{% endif %}
+{% if systemd_resolved.cache_from_localhost is defined and
+      systemd_resolved.cache_from_localhost | string | length > 0 %}
+CacheFromLocalhost            = {{ systemd_resolved.cache_from_localhost | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_resolved.dns_stub_listener is defined and
+      systemd_resolved.dns_stub_listener | string | length > 0 %}
+DNSStubListener               = {{ systemd_resolved.dns_stub_listener | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_resolved.dns_stub_listener_extra is defined and
+      systemd_resolved.dns_stub_listener_extra | count > 0 %}
+  {% for stub in systemd_resolved.dns_stub_listener_extra %}
+DNSStubListenerExtra          = {{ stub }}
+  {% endfor %}
+{% endif %}
+{% if systemd_resolved.read_etc_hosts is defined and
+      systemd_resolved.read_etc_hosts | string | length > 0 %}
+ReadEtcHosts                  = {{ systemd_resolved.read_etc_hosts | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_resolved.resolve_unicast_single_label is defined and
+      systemd_resolved.resolve_unicast_single_label | string | length > 0 %}
+ResolveUnicastSingleLabel     = {{ systemd_resolved.resolve_unicast_single_label | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_resolved.stale_retention_sec is defined and
+      systemd_resolved.stale_retention_sec | string | length > 0 %}
+StaleRetentionSec             = {{ systemd_resolved.stale_retention_sec }}
+{% endif %}

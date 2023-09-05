@@ -1,0 +1,15 @@
+---
+
+- name: merge systemd resolved configuration between defaults and custom
+  ansible.builtin.set_fact:
+    systemd_resolved: "{{ systemd_defaults_resolved | combine(systemd_resolved, recursive=True) }}"
+
+- name: create systemd resolved configuration
+  ansible.builtin.template:
+    src: systemd/resolved.conf.j2
+    dest: /etc/systemd/resolved.conf
+    mode: 0644
+    owner: root
+    group: root
+
+...
