@@ -1,0 +1,68 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# {{ ansible_managed }}
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it under the
+#  terms of the GNU Lesser General Public License as published by the Free
+#  Software Foundation; either version 2.1 of the License, or (at your option)
+#  any later version.
+#
+# Entries in this file show the compile time defaults. Local configuration
+# should be created by either modifying this file, or by creating "drop-ins" in
+# the networkd.conf.d/ subdirectory. The latter is generally recommended.
+# Defaults can be restored by simply deleting this file and all drop-ins.
+#
+# See networkd.conf(5) for details.
+
+[Network]
+{% if systemd_networkd.speed_meter is defined and
+      systemd_networkd.speed_meter | string | length > 0 %}
+SpeedMeter                    = {{ systemd_networkd.speed_meter | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_networkd.speed_meter_interval_sec is defined and
+      systemd_networkd.speed_meter_interval_sec | string | length > 0 %}
+SpeedMeterIntervalSec         = {{ systemd_networkd.speed_meter_interval_sec }}
+{% endif %}
+{% if systemd_networkd.manage_foreign_routing_policy_rules is defined and
+      systemd_networkd.manage_foreign_routing_policy_rules | string | length > 0 %}
+ManageForeignRoutingPolicyRules= {{ systemd_networkd.manage_foreign_routing_policy_rules | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_networkd.manage_foreign_routes is defined and
+      systemd_networkd.manage_foreign_routes | string | length > 0 %}
+ManageForeignRoutes           = {{ systemd_networkd.manage_foreign_routes | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_networkd.route_table is defined and
+      systemd_networkd.route_table | string | length > 0 %}
+RouteTable                    = {{ systemd_networkd.route_table }}
+{% endif %}
+{% if systemd_networkd.ipv6_privacy_extensions is defined and
+      systemd_networkd.ipv6_privacy_extensions | string | length > 0 %}
+IPv6PrivacyExtensions         = {{ systemd_networkd.ipv6_privacy_extensions | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+
+[DHCPv4]
+{% if systemd_networkd.dhcp4 is defined and
+      systemd_networkd.dhcp4 | count > 0 %}
+  {% if systemd_networkd.dhcp4.duid_type is defined and
+        systemd_networkd.dhcp4.duid_type | string | length > 0 %}
+DUIDType                      = {{ systemd_networkd.dhcp4.duid_type }}
+  {% endif %}
+  {% if systemd_networkd.dhcp4.duid_raw_data is defined and
+        systemd_networkd.dhcp4.duid_raw_data | string | length > 0 %}
+DUIDRawData                   = {{ systemd_networkd.dhcp4.duid_raw_data }}
+  {% endif %}
+{% endif %}
+
+[DHCPv6]
+{% if systemd_networkd.dhcp6 is defined and
+      systemd_networkd.dhcp6 | count > 0 %}
+  {% if systemd_networkd.dhcp6.duid_type is defined and
+        systemd_networkd.dhcp6.duid_type | string | length > 0 %}
+DUIDType                      = {{ systemd_networkd.dhcp6.duid_type }}
+  {% endif %}
+  {% if systemd_networkd.dhcp6.duid_raw_data is defined and
+        systemd_networkd.dhcp6.duid_raw_data | string | length > 0 %}
+DUIDRawData                   = {{ systemd_networkd.dhcp6.duid_raw_data }}
+  {% endif %}
+{% endif %}
