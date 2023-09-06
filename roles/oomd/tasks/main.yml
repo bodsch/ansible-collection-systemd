@@ -1,0 +1,15 @@
+---
+
+- name: merge systemd oomd configuration between defaults and custom
+  ansible.builtin.set_fact:
+    systemd_oomd: "{{ systemd_defaults_oomd | combine(systemd_oomd, recursive=True) }}"
+
+- name: create systemd oomd configuration
+  ansible.builtin.template:
+    src: systemd/oomd.conf.j2
+    dest: /etc/systemd/oomd.conf
+    mode: 0644
+    owner: root
+    group: root
+
+...

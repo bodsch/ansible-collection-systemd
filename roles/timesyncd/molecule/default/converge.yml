@@ -4,4 +4,4 @@
   any_errors_fatal: false
 
   roles:
-    - role: bodsch.systemd.resolved
+    - role: bodsch.systemd.timesyncd

@@ -1,0 +1,15 @@
+---
+
+- name: merge systemd timesyncd configuration between defaults and custom
+  ansible.builtin.set_fact:
+    systemd_timesyncd: "{{ systemd_defaults_timesyncd | combine(systemd_timesyncd, recursive=True) }}"
+
+- name: create systemd timesyncd configuration
+  ansible.builtin.template:
+    src: systemd/timesyncd.conf.j2
+    dest: /etc/systemd/timesyncd.conf
+    mode: 0644
+    owner: root
+    group: root
+
+...

@@ -1,0 +1,7 @@
+---
+
+systemd_defaults_homed:
+  default_storage: ""
+  default_filesystem_type: ""     # btrfs
+
+...

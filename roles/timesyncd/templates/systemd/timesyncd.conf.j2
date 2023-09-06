@@ -1,0 +1,46 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# {{ ansible_managed }}
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it under the
+#  terms of the GNU Lesser General Public License as published by the Free
+#  Software Foundation; either version 2.1 of the License, or (at your option)
+#  any later version.
+#
+# Entries in this file show the compile time defaults. Local configuration
+# should be created by either modifying this file, or by creating "drop-ins" in
+# the timesyncd.conf.d/ subdirectory. The latter is generally recommended.
+# Defaults can be restored by simply deleting this file and all drop-ins.
+#
+# See timesyncd.conf(5) for details.
+
+[Time]
+{% if systemd_timesyncd.ntp is defined and
+      systemd_timesyncd.ntp | count > 0 %}
+NTP                           = {{ systemd_timesyncd.ntp | join(' ') }}
+{% endif %}
+{% if systemd_timesyncd.fallback_ntp is defined and
+      systemd_timesyncd.fallback_ntp | count > 0 %}
+FallbackNTP                   = {{ systemd_timesyncd.fallback_ntp | join(' ') }}
+{% endif %}
+{% if systemd_timesyncd.root_distance_max_sec is defined and
+      systemd_timesyncd.root_distance_max_sec | string | length > 0 %}
+RootDistanceMaxSec            = {{ systemd_timesyncd.root_distance_max_sec }}
+{% endif %}
+{% if systemd_timesyncd.poll_interval_min_sec is defined and
+      systemd_timesyncd.poll_interval_min_sec | string | length > 0 %}
+PollIntervalMinSec            = {{ systemd_timesyncd.poll_interval_min_sec }}
+{% endif %}
+{% if systemd_timesyncd.poll_interval_max_sec is defined and
+      systemd_timesyncd.poll_interval_max_sec | string | length > 0 %}
+PollIntervalMaxSec            = {{ systemd_timesyncd.poll_interval_max_sec }}
+{% endif %}
+{% if systemd_timesyncd.connection_retry_sec is defined and
+      systemd_timesyncd.connection_retry_sec | string | length > 0 %}
+ConnectionRetrySec            = {{ systemd_timesyncd.connection_retry_sec }}
+{% endif %}
+{% if systemd_timesyncd.save_interval_sec is defined and
+      systemd_timesyncd.save_interval_sec | string | length > 0 %}
+SaveIntervalSec               = {{ systemd_timesyncd.save_interval_sec }}
+{% endif %}

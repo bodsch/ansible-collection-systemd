@@ -1,0 +1,32 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# {{ ansible_managed }}
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it under the
+#  terms of the GNU Lesser General Public License as published by the Free
+#  Software Foundation; either version 2.1 of the License, or (at your option)
+#  any later version.
+#
+# Entries in this file show the compile time defaults. Local configuration
+# should be created by either modifying this file, or by creating "drop-ins" in
+# the oomd.conf.d/ subdirectory. The latter is generally recommended.
+# Defaults can be restored by simply deleting this file and all drop-ins.
+#
+# Use 'systemd-analyze cat-config systemd/oomd.conf' to display the full config.
+#
+# See oomd.conf(5) for details
+
+[OOM]
+{% if systemd_oomd.swap_used_limit is defined and
+      systemd_oomd.swap_used_limit | string | length > 0 %}
+SwapUsedLimit                     = {{ systemd_oomd.swap_used_limit }}
+{% endif %}
+{% if systemd_oomd.default_memory_pressure_limit is defined and
+      systemd_oomd.default_memory_pressure_limit | string | length > 0 %}
+DefaultMemoryPressureLimit        = {{ systemd_oomd.default_memory_pressure_limit }}
+{% endif %}
+{% if systemd_oomd.default_memory_pressure_durationSec is defined and
+      systemd_oomd.default_memory_pressure_durationSec | string | length > 0 %}
+DefaultMemoryPressureDurationSec  = {{ systemd_oomd.default_memory_pressure_durationSec }}
+{% endif %}

@@ -104,118 +104,21 @@ def local_facts(host):
     """
       return local facts
     """
-    return host.ansible("setup").get("ansible_facts").get("ansible_local").get("alertmanager")
+    return host.ansible("setup").get("ansible_facts").get("ansible_local").get("networkd")
 
 
-@pytest.mark.parametrize("dirs", [
-    "/etc/alertmanager",
-    "/etc/amtool"
+@pytest.mark.parametrize("directories", [
+    "/etc/systemd",
 ])
-def test_directories(host, dirs):
-    d = host.file(dirs)
+def test_directories(host, directories):
+    d = host.file(directories)
     assert d.is_directory
 
-
-def test_alertmanager_files(host, get_vars):
+@pytest.mark.parametrize("files", [
+    "/etc/systemd/networkd.conf",
+])
+def test_systemd_files(host, files):
     """
     """
-    distribution = host.system_info.distribution
-    release = host.system_info.release
-
-    print(f"distribution: {distribution}")
-    print(f"release     : {release}")
-
-    version = local_facts(host).get("version")
-
-    install_dir = get_vars.get("alertmanager_install_path")
-    defaults_dir = get_vars.get("alertmanager_defaults_directory")
-    config_dir = get_vars.get("alertmanager_config_dir")
-
-    if 'latest' in install_dir:
-        install_dir = install_dir.replace('latest', version)
-
-    files = []
-    files.append("/usr/bin/alertmanager")
-
-    if install_dir:
-        files.append(f"{install_dir}/alertmanager")
-    if defaults_dir and not distribution == "artix":
-        files.append(f"{defaults_dir}/alertmanager")
-    if config_dir:
-        files.append(f"{config_dir}/alertmanager.yml")
-
-    print(files)
-
-    for _file in files:
-        f = host.file(_file)
-        assert f.is_file
-
-
-def test_amtool_files(host, get_vars):
-    """
-    """
-    distribution = host.system_info.distribution
-    release = host.system_info.release
-
-    print(f"distribution: {distribution}")
-    print(f"release     : {release}")
-
-    version = local_facts(host).get("version")
-    install_dir = get_vars.get("alertmanager_install_path")
-    config_dir = get_vars.get("alertmanager_amtool", {}).get("config_dir", None)
-
-    if 'latest' in install_dir:
-        install_dir = install_dir.replace('latest', version)
-
-    files = []
-    files.append("/usr/bin/amtool")
-
-    if install_dir:
-        files.append(f"{install_dir}/amtool")
-    if config_dir:
-        files.append(f"{config_dir}/config.yml")
-
-    print(files)
-
-    for _file in files:
-        f = host.file(_file)
-        assert f.is_file
-
-
-def test_user(host, get_vars):
-    """
-    """
-    user = get_vars.get("alertmanager_system_user", "alertmanager")
-    group = get_vars.get("alertmanager_system_group", "alertmanager")
-
-    assert host.group(group).exists
-    assert host.user(user).exists
-    assert group in host.user(user).groups
-    assert host.user(user).home == "/nonexistent"
-
-
-def test_service(host, get_vars):
-    service = host.service("alertmanager")
-    assert service.is_enabled
-    assert service.is_running
-
-
-def test_open_port(host, get_vars):
-    for i in host.socket.get_listening_sockets():
-        print(i)
-
-    alertmanager_service = get_vars.get("alertmanager_service", {})
-
-    print(alertmanager_service)
-
-    if isinstance(alertmanager_service, dict):
-        alertmanager_web = alertmanager_service.get("web", {})
-        listen_address = alertmanager_web.get("listen_address")
-
-    if not listen_address:
-        listen_address = "0.0.0.0:9093"
-
-    print(listen_address)
-
-    service = host.socket(f"tcp://{listen_address}")
-    assert service.is_listening
+    d = host.file(files)
+    assert d.is_file

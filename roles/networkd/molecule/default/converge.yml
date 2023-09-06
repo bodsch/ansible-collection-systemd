@@ -4,4 +4,4 @@
   any_errors_fatal: false
 
   roles:
-    - role: bodsch.prometheus.alertmanager
+    - role: bodsch.systemd.networkd
