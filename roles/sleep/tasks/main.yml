@@ -1,0 +1,15 @@
+---
+
+- name: merge systemd sleep configuration between defaults and custom
+  ansible.builtin.set_fact:
+    systemd_sleep: "{{ systemd_defaults_sleep | combine(systemd_sleep, recursive=True) }}"
+
+- name: create systemd sleep configuration
+  ansible.builtin.template:
+    src: systemd/sleep.conf.j2
+    dest: /etc/systemd/sleep.conf
+    mode: 0644
+    owner: root
+    group: root
+
+...

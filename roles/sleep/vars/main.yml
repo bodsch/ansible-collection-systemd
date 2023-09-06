@@ -1,0 +1,19 @@
+---
+
+systemd_defaults_sleep:
+  allow_suspend: ""                           # true
+  allow_hibernation: ""                       # true
+  allow_suspend_then_hibernate: ""            # true
+  allow_hybrid_sleep: ""                      # true
+  # [platform] shutdown reboot suspend test_resume
+  suspend_mode: []
+  # freeze mem disk
+  suspend_state: []                           # [mem, standby, freeze]
+  hibernate_mode: []                          # [platform, shutdown]
+  hibernate_state: []                         # [disk]
+  hibernate_delay_sec: ""
+  hybrid_sleep_mode: []                       # [suspend, platform, shutdown]
+  hybrid_sleep_state: []                      # [disk]
+  suspend_estimation_sec: ""                  # 60min
+
+...

@@ -1,0 +1,7 @@
+---
+
+systemd_defaults_pstore:
+  storage: ""           # external
+  unlink: ""            # true
+
+...

@@ -1,0 +1,15 @@
+---
+
+- name: merge systemd system configuration between defaults and custom
+  ansible.builtin.set_fact:
+    systemd_system: "{{ systemd_defaults_system | combine(systemd_system, recursive=True) }}"
+
+- name: create systemd system configuration
+  ansible.builtin.template:
+    src: systemd/system.conf.j2
+    dest: /etc/systemd/system.conf
+    mode: 0644
+    owner: root
+    group: root
+
+...

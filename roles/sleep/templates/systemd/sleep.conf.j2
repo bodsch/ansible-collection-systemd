@@ -1,0 +1,72 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# {{ ansible_managed }}
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it under the
+#  terms of the GNU Lesser General Public License as published by the Free
+#  Software Foundation; either version 2.1 of the License, or (at your option)
+#  any later version.
+#
+# Entries in this file show the compile time defaults. Local configuration
+# should be created by either modifying this file, or by creating "drop-ins" in
+# the sleep.conf.d/ subdirectory. The latter is generally recommended.
+# Defaults can be restored by simply deleting this file and all drop-ins.
+#
+# See systemd-sleep.conf(5) for details.
+
+[Sleep]
+{% if systemd_sleep.allow_suspend is defined and
+      systemd_sleep.allow_suspend | string | length > 0 %}
+AllowSuspend                      = {{ systemd_sleep.allow_suspend | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_sleep.allow_hibernation is defined and
+      systemd_sleep.allow_hibernation | string | length > 0 %}
+AllowHibernation                  = {{ systemd_sleep.allow_hibernation | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_sleep.allow_suspend_then_hibernate is defined and
+      systemd_sleep.allow_suspend_then_hibernate | string | length > 0 %}
+AllowSuspendThenHibernate         = {{ systemd_sleep.allow_suspend_then_hibernate | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_sleep.allow_hybrid_sleep is defined and
+      systemd_sleep.allow_hybrid_sleep | string | length > 0 %}
+AllowHybridSleep                  = {{ systemd_sleep.allow_hybrid_sleep | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+{% endif %}
+{% if systemd_sleep.suspend_mode is defined and
+      systemd_sleep.suspend_mode | count > 0 %}
+  {% set _valid_list = systemd_sleep.suspend_mode | bodsch.systemd.valid_list(["disk", "platform", "shutdown", "reboot", "suspend", "test_resume"]) %}
+SuspendMode                       = {{ _valid_list | join(' ') }}
+{% endif %}
+{% if systemd_sleep.suspend_state is defined and
+      systemd_sleep.suspend_state | count > 0 %}
+  {% set _valid_list = systemd_sleep.suspend_state | bodsch.systemd.valid_list(["mem", "disk", "standby", "freeze"]) %}
+SuspendState                      = {{ _valid_list | join(' ') }}
+{% endif %}
+{% if systemd_sleep.hibernate_mode is defined and
+      systemd_sleep.hibernate_mode | count > 0 %}
+  {% set _valid_list = systemd_sleep.hibernate_mode | bodsch.systemd.valid_list(["disk", "platform", "shutdown", "reboot", "suspend", "test_resume"]) %}
+HibernateMode                     = {{ _valid_list | join(' ') }}
+{% endif %}
+{% if systemd_sleep.hibernate_state is defined and
+      systemd_sleep.hibernate_state | count > 0 %}
+  {% set _valid_list = systemd_sleep.hibernate_state | bodsch.systemd.valid_list(["mem", "disk", "standby", "freeze"]) %}
+HibernateState                    = {{ _valid_list | join(' ') }}
+{% endif %}
+{% if systemd_sleep.hybrid_sleep_mode is defined and
+      systemd_sleep.hybrid_sleep_mode | count > 0 %}
+  {% set _valid_list = systemd_sleep.hibernate_mode | bodsch.systemd.valid_list(["disk", "platform", "shutdown", "reboot", "suspend", "test_resume"]) %}
+HybridSleepMode                   = {{ _valid_list | join(' ') }}
+{% endif %}
+{% if systemd_sleep.hybrid_sleep_state is defined and
+      systemd_sleep.hybrid_sleep_state | count > 0 %}
+  {% set _valid_list = systemd_sleep.hybrid_sleep_state | bodsch.systemd.valid_list(["mem", "disk", "standby", "freeze"]) %}
+HybridSleepState                  = {{ _valid_list | join(' ') }}
+{% endif %}
+{% if systemd_sleep.hibernate_delay_sec is defined and
+      systemd_sleep.hibernate_delay_sec | string | length > 0 %}
+HibernateDelaySec                 = {{ systemd_sleep.hibernate_delay_sec }}
+{% endif %}
+{% if systemd_sleep.suspend_estimation_sec is defined and
+      systemd_sleep.suspend_estimation_sec | string | length > 0 %}
+SuspendEstimationSec              = {{ systemd_sleep.suspend_estimation_sec }}
+{% endif %}
