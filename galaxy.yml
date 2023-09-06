@@ -1,0 +1,41 @@
+---
+
+namespace: bodsch
+name: systemd
+
+version: 0.9.7
+
+readme: README.md
+
+authors:
+  - Bodo Schulz <bodo@boone-schulz.de>
+
+description: A collection of Ansible roles for the systemd universe.
+
+license:
+  - Apache-2.0
+
+license_file: ''
+
+tags:
+  - systemd
+  - system
+
+dependencies:
+  bodsch.core: ">=1.0.18"
+
+repository: https://github.com/bodsch/ansible-collection-systemd
+documentation: https://github.com/bodsch/ansible-collection-systemd/README.md
+homepage: https://github.com/bodsch/ansible-collection-systemd
+issues: https://github.com/bodsch/ansible-collection-systemd/issues
+
+build_ignore:
+  - "galaxy.yml"
+  - "*.pyc"
+  - "*.retry"
+  - ".ansible-lint"
+  - ".editorconfig"
+  - ".flake8"
+  - ".gitignore"
+  - ".yamllint"
+  - ".github"
