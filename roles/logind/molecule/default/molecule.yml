@@ -31,8 +31,6 @@ platforms:
     tmpfs:
       - /run
       - /tmp
-    published_ports:
-      - 9090:9090
 
 provisioner:
   name: ansible

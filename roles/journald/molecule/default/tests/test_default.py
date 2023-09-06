@@ -104,7 +104,7 @@ def local_facts(host):
     """
       return local facts
     """
-    return host.ansible("setup").get("ansible_facts").get("ansible_local").get("coredump")
+    return host.ansible("setup").get("ansible_facts").get("ansible_local").get("journald")
 
 
 @pytest.mark.parametrize("directories", [
@@ -115,7 +115,7 @@ def test_directories(host, directories):
     assert d.is_directory
 
 @pytest.mark.parametrize("files", [
-    "/etc/systemd/coredump.conf",
+    "/etc/systemd/journald.conf",
 ])
 def test_systemd_files(host, files):
     """

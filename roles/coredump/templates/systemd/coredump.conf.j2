@@ -1,0 +1,50 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# {{ ansible_managed }}
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it under the
+#  terms of the GNU Lesser General Public License as published by the Free
+#  Software Foundation; either version 2.1 of the License, or (at your option)
+#  any later version.
+#
+# Entries in this file show the compile time defaults. Local configuration
+# should be created by either modifying this file, or by creating "drop-ins" in
+# the coredump.conf.d/ subdirectory. The latter is generally recommended.
+# Defaults can be restored by simply deleting this file and all drop-ins.
+#
+# Use 'systemd-analyze cat-config systemd/coredump.conf' to display the full config.
+#
+# See coredump.conf(5) for details.
+
+[Coredump]
+{% if systemd_coredump.storage is defined and
+      systemd_coredump.storage | string | length > 0 and
+      systemd_coredump.storage in ["none", "external", "journal"] %}
+Storage         = {{ systemd_coredump.storage }}
+{% endif %}
+{% if systemd_coredump.compress is defined and
+      systemd_coredump.compress | string | length > 0 and
+      systemd_coredump.compress %}
+Compress        = yes
+{% endif %}
+{% if systemd_coredump.process_size_max is defined and
+      systemd_coredump.process_size_max | string | length > 0 %}
+ProcessSizeMax  = {{ systemd_coredump.process_size_max }}
+{% endif %}
+{% if systemd_coredump.external_size_max is defined and
+      systemd_coredump.external_size_max | string | length > 0 %}
+ExternalSizeMax = {{ systemd_coredump.external_size_max }}
+{% endif %}
+{% if systemd_coredump.journal_size_max is defined and
+      systemd_coredump.journal_size_max | string | length > 0 %}
+JournalSizeMax  = {{ systemd_coredump.journal_size_max }}
+{% endif %}
+{% if systemd_coredump.max_use is defined and
+      systemd_coredump.max_use | string | length > 0 %}
+MaxUse          = {{ systemd_coredump.max_use }}
+{% endif %}
+{% if systemd_coredump.keep_free is defined and
+      systemd_coredump.keep_free | string | length > 0 %}
+KeepFree        = {{ systemd_coredump.keep_free }}
+{% endif %}
