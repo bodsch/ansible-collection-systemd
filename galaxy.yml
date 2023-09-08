@@ -3,7 +3,7 @@
 namespace: bodsch
 name: systemd
 
-version: 0.9.7
+version: 1.0.0
 
 readme: README.md
 
