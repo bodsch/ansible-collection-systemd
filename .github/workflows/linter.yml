@@ -1,0 +1,57 @@
+---
+
+name: lint plugins
+
+on:
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'warning'
+        type: choice
+        options:
+          - info
+          - warning
+          - debug
+  push:
+    branches:
+      - 'feature/**'
+      - 'fix/**'
+      - '!doc/**'
+    paths:
+      - 'plugins/**'
+      - '!roles/**'
+      - '!.github/workflows/test_role*.yml'
+      - '.config/pycodestyle.cfg'
+  pull_request:
+    branches:
+      - 'feature/**'
+      - 'fix/**'
+      - '!doc/**'
+    paths:
+      - 'plugins/**'
+      - '!roles/**'
+      - '!.github/workflows/test_role*.yml'
+      - '.config/pycodestyle.cfg'
+
+jobs:
+  pep8:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install test dependencies.
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pycodestyle
+
+      - name: Lint code.
+        run: |
+          pycodestyle plugins/ --config=.config/pycodestyle.cfg --statistics --count
