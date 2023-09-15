@@ -6,16 +6,16 @@ Documentation for the collection.
 
 | Role | | Description |
 | :---- | :---- | :---- |
-| [bodsch.systemd.coredump](./roles/coredump/README.md)   |       |       |
-| [bodsch.systemd.homed](./roles/homed/README.md)         |       |       |
-| [bodsch.systemd.journald](./roles/journald/README.md)   |       |       |
-| [bodsch.systemd.oomd](./roles/oomd/README.md)           |       |       |
-| [bodsch.systemd.logind](./roles/logind/README.md)       |       |       |
-| [bodsch.systemd.networkd](./roles/networkd/README.md)   |       |       |
-| [bodsch.systemd.resolved](./roles/resolved/README.md)   |       |       |
-| [bodsch.systemd.system](./roles/system/README.md)       |       |       |
-| [bodsch.systemd.timesyncd](./roles/timesyncd/README.md) |       |       |
-| [bodsch.systemd.user](./roles/user/README.md)           |       |       |
+| [bodsch.systemd.coredump](./roles/coredump/README.md)   |       | configure systemd-coredump  |
+| [bodsch.systemd.homed](./roles/homed/README.md)         |       | configure systemd-homed     |
+| [bodsch.systemd.journald](./roles/journald/README.md)   |       | configure systemd-journald  |
+| [bodsch.systemd.oomd](./roles/oomd/README.md)           |       | configure systemd-oomd      |
+| [bodsch.systemd.logind](./roles/logind/README.md)       |       | configure systemd-logind    |
+| [bodsch.systemd.networkd](./roles/networkd/README.md)   |       | configure systemd-networkd  |
+| [bodsch.systemd.resolved](./roles/resolved/README.md)   |       | configure systemd-resolved  |
+| [bodsch.systemd.system](./roles/system/README.md)       |       | configure systemd-system    |
+| [bodsch.systemd.timesyncd](./roles/timesyncd/README.md) |       | configure systemd-timesyncd |
+| [bodsch.systemd.user](./roles/user/README.md)           |       | configure systemd-user      |
 
 
 ## Included content
@@ -38,7 +38,7 @@ You can install the memsource collection with the Ansible Galaxy CLI:
 To install directly from GitHub:
 
 ```sh
-#> ansible-galaxy collection install git@github.com:bodsch/ansible-collection-core.git
+#> ansible-galaxy collection install git@github.com:bodsch/ansible-collection-systemd.git
 ```
 
 
@@ -80,7 +80,7 @@ Please read [Contribution](CONTRIBUTING.md)
 
 The `master` Branch is my *Working Horse* includes the "latest, hot shit" and can be complete broken!
 
-If you want to use something stable, please use a [Tagged Version](https://github.com/bodsch/ansible-collection-core/tags)!
+If you want to use something stable, please use a [Tagged Version](https://github.com/bodsch/ansible-collection-systemd/tags)!
 
 
 ## Author
