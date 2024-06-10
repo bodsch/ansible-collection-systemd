@@ -1,12 +1,10 @@
 ---
 
-alertmanager_route:
-  group_by:
-    - 'alertname'
-    - 'service'
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 4h
-  default_receiver: blackhole
+systemd_system:
+  log_level: "debug"     # info
+  log_target: ""         # auto
+  log_color: true        # true
+  log_location: true     # false
+  log_time: true         # false
 
 ...

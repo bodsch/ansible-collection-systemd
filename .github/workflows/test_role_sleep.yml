@@ -47,8 +47,7 @@ env:
 
 jobs:
   arch:
-    name: "${{ matrix.image }} / ${{ matrix.scenario }} / ${{ matrix.ansible-version }} / ${{
-matrix.python_version }}"
+    name: "${{ matrix.image }} / ${{ matrix.scenario }} / ${{ matrix.ansible-version }} / ${{ matrix.python_version }}"
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
@@ -81,6 +80,11 @@ matrix.python_version }}"
           python -m pip install --upgrade pip
           pip install -r test-requirements.txt
 
+      - name: force reinstall of community.docker
+        run: |
+          mkdir -p /home/runner/.ansible/collections
+          ansible-galaxy collection install community.docker --force
+
       - name: Install collection
         run: |
           make \
@@ -100,14 +104,13 @@ matrix.python_version }}"
           DISTRIBUTION: ${{ matrix.image }}
 
   deb:
-    name: "${{ matrix.image }} / ${{ matrix.scenario }} / ${{ matrix.ansible-version }} / ${{
-matrix.python_version }}"
+    name: "${{ matrix.image }} / ${{ matrix.scenario }} / ${{ matrix.ansible-version }} / ${{ matrix.python_version }}"
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
         image:
-          - debian:11
+          - debian:12
         ansible-version:
           - '6.7'
         python_version:
@@ -131,6 +134,11 @@ matrix.python_version }}"
         run: |
           python -m pip install --upgrade pip
           pip install -r test-requirements.txt
+
+      - name: force reinstall of community.docker
+        run: |
+          mkdir -p /home/runner/.ansible/collections
+          ansible-galaxy collection install community.docker --force
 
       - name: Install collection
         run: |
