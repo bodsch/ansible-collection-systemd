@@ -1,0 +1,20 @@
+---
+
+- name: create systemd unit files
+  bodsch.systemd.unit_file:
+    name: "{{ item.name }}"
+    unit_type: "{{ item.unit_type }}"
+    overwrite: "{{ item.overwrite }}"
+    drop_ins: "{{ item.drop_ins | default(omit) }}"
+    unit: "{{ item.drop_ins | default(omit) }}"
+    service: "{{ item.drop_ins | default(omit) }}"
+    install: "{{ item.drop_ins | default(omit) }}"
+  loop:
+    "{{ systemd_unit }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+  when:
+    - systemd_unit | count > 0
+
+...
