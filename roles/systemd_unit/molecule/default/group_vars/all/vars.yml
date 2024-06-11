@@ -6,13 +6,14 @@ systemd_unit:
     overwrite: true
     drop_ins:
       - name: autologin
-        service:
-          exec_start: unsafe!
-            - "-/sbin/agetty -o '-p -f -- \\u' --noclear --autologin username %I $TERM"
-          type: simple
+        Service:
+          ExecStart:
+            - ""
+            - "{% raw %}-/sbin/agetty -o '-p -f -- \\\\u' --noclear --autologin username %I $TERM{% endraw %}"
+          Type: simple
 
       - name: noclear
-        service:
+        Service:
           TTYVTDisallocate: false
   # - name: chronyd
   #   unit_type: service
