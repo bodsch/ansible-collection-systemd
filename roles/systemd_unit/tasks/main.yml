@@ -3,18 +3,24 @@
 - name: create systemd unit files
   bodsch.systemd.unit_file:
     name: "{{ item.name }}"
+    state: "{{ item.state }}"
     unit_type: "{{ item.unit_type }}"
     overwrite: "{{ item.overwrite }}"
     drop_ins: "{{ item.drop_ins | default(omit) }}"
-    unit: "{{ item.drop_ins | default(omit) }}"
-    service: "{{ item.drop_ins | default(omit) }}"
-    install: "{{ item.drop_ins | default(omit) }}"
+    # unit: "{{ item.unit | default(omit) }}"
+    # service: "{{ item.service | default(omit) }}"
+    # install: "{{ item.install | default(omit) }}"
   loop:
     "{{ systemd_unit }}"
   loop_control:
     label: "{{ item.name }}"
-
+  register: systemd_unit_file
+  ignore_errors: true
   when:
     - systemd_unit | count > 0
+
+- name: d
+  debug:
+    msg: "{{ systemd_unit_file }}"
 
 ...

@@ -2,10 +2,12 @@
 
 systemd_unit:
   - name: "getty@tty1"
+    state: present
     unit_type: service
     overwrite: true
     drop_ins:
       - name: autologin
+        state: present
         Service:
           ExecStart:
             - ""
@@ -13,11 +15,15 @@ systemd_unit:
           Type: simple
 
       - name: noclear
+        state: absent
         Service:
           TTYVTDisallocate: false
-  # - name: chronyd
-  #   unit_type: service
-  #   overwrite: false
+
+  - name: chronyd
+    state: present
+    unit_type: service
+    overwrite: false
+
   #   unit:
   #     Description: "NTP client/server"
   #     Documentation: "man:chronyd(8) man:chrony.conf(5)"
