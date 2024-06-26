@@ -1,6 +1,6 @@
 ---
 
-systemd_coredump:
+systemd_journald:
   storage: external
   compress: true
   process_size_max: 32G
