@@ -1,6 +1,6 @@
 ---
 
-name: user
+name: homed
 
 on:
   workflow_dispatch:
@@ -23,8 +23,8 @@ on:
     paths:
       - "!Makefile"
       - "!README.md"
-      - 'roles/user/**'
-      - '.github/workflows/test_role_user.yml'
+      - 'roles/homed/**'
+      - '.github/workflows/test_role_homed.yml'
       - '.config/ansible-lint.yml'
       - '.yamllint'
   pull_request:
@@ -36,8 +36,8 @@ on:
     paths:
       - "!Makefile"
       - "!README.md"
-      - 'roles/user/**'
-      - '.github/workflows/test_role_user.yml'
+      - 'roles/homed/**'
+      - '.github/workflows/test_role_homed.yml'
       - '.config/ansible-lint.yml'
       - '.yamllint'
 
@@ -46,14 +46,14 @@ env:
   COLLECTION_NAME: systemd
 
 jobs:
-  arch:
+  debian:
     name: "${{ matrix.image }} / ${{ matrix.scenario }} / ${{ matrix.ansible-version }} / ${{ matrix.python_version }}"
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
         image:
-          - archlinux:latest
+          - debian:12
         ansible-version:
           - '8.5'
         python_version:
@@ -62,59 +62,7 @@ jobs:
         scenario:
           - default
         collection_role:
-          - user
-
-    steps:
-      - name: check out the codebase.
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_branch }}
-
-      - name: 🐍 set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "${{ matrix.python_version }}"
-
-      - name: install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r test-requirements.txt
-
-      - name: Install collection
-        run: |
-          make \
-            install
-
-      - name: test ${{ matrix.collection_role }} - ${{ matrix.scenario }}
-        run: |
-          make \
-            test \
-              -e TOX_ANSIBLE="ansible_${{ matrix.ansible-version }}" \
-              -e DISTRIBUTION="${{ matrix.image }}" \
-              -e COLLECTION_ROLE="${{ matrix.collection_role }}" \
-              -e COLLECTION_SCENARIO="${{ matrix.scenario }}"
-        env:
-          PY_COLORS: '1'
-          ANSIBLE_FORCE_COLOR: '1'
-          DISTRIBUTION: ${{ matrix.image }}
-
-  deb:
-    name: "${{ matrix.image }} / ${{ matrix.scenario }} / ${{ matrix.ansible-version }} / ${{ matrix.python_version }}"
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        image:
-          - debian:11
-        ansible-version:
-          - '8.5'
-        python_version:
-          - "3.10"
-          - "3.11"
-        scenario:
-          - default
-        collection_role:
-          - user
+          - homed
 
     steps:
       - name: check out the codebase.
@@ -143,7 +91,3 @@ jobs:
               -e DISTRIBUTION="${{ matrix.image }}" \
               -e COLLECTION_ROLE="${{ matrix.collection_role }}" \
               -e COLLECTION_SCENARIO="${{ matrix.scenario }}"
-        env:
-          PY_COLORS: '1'
-          ANSIBLE_FORCE_COLOR: '1'
-          DISTRIBUTION: ${{ matrix.image }}
