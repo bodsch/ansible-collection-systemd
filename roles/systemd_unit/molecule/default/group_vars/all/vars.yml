@@ -19,11 +19,52 @@ systemd_unit:
         Service:
           TTYVTDisallocate: false
 
-  - name: chronyd
+  - name: sshd
     state: present
     unit_type: service
     overwrite: false
+    unit_file:
+      unit:
+        Description: OpenBSD Secure Shell server
+        Documentation: man:sshd(8) man:sshd_config(5)
+        After:
+          - network.target
+          - auditd.service
+        ConditionPathExists: "!/etc/ssh/sshd_not_to_be_run"
+      service:
+        EnvironmentFile: -/etc/default/ssh
+        ExecStartPre: /usr/sbin/sshd -t
+        ExecStart: /usr/sbin/sshd -D $SSHD_OPTS
+        ExecReload:
+          - /usr/sbin/sshd -t
+          - /bin/kill -HUP $MAINPID
+        KillMode: process
+        Restart: on-failure
+        RestartPreventExitStatus: 255
+        Type: notify
+        RuntimeDirectory: sshd
+        RuntimeDirectoryMode: "0755"
+      install:
+        WantedBy: multi-user.target
+        Alias: sshd.service
 
+  - name: systemd-tmpfiles-clean
+    state: present
+    unit_type: timer
+    unit_file:
+      unit:
+        Description: Daily Cleanup of Temporary Directories
+        Documentation: man:tmpfiles.d(5) man:systemd-tmpfiles(8)
+        ConditionPathExists: "!/etc/initrd-release"
+      timer:
+        OnBootSec: 15min
+        OnUnitActiveSec: 1d
+
+  # - name: chronyd
+  #   state: present
+  #   unit_type: service
+  #   overwrite: false
+  #
   #   unit:
   #     Description: "NTP client/server"
   #     Documentation: "man:chronyd(8) man:chrony.conf(5)"
