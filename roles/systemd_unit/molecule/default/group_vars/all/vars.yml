@@ -60,6 +60,23 @@ systemd_unit:
         OnBootSec: 15min
         OnUnitActiveSec: 1d
 
+  - name: systemd-initctl
+    state: present
+    unit_type: socket
+    unit_file:
+      unit:
+        Description: initctl Compatibility Named Pipe
+        Documentation: man:systemd-initctl.socket(8)
+        DefaultDependencies: no
+        Before: sockets.target
+
+      Socket:
+        ListenFIFO: /run/initctl
+        Symlinks: /dev/initctl
+        SocketMode: "0600"
+
+
+
   # - name: chronyd
   #   state: present
   #   unit_type: service
