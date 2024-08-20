@@ -17,11 +17,11 @@
 [Login]
 {% if systemd_logind.n_auto_vt is defined and
       systemd_logind.n_auto_vt | string | length > 0 %}
-NAutoVTs                      = {{ systemd_journald.n_auto_vt }}
+NAutoVTs                      = {{ systemd_logind.n_auto_vt }}
 {% endif %}
 {% if systemd_logind.reserve_vt is defined and
       systemd_logind.reserve_vt | string | length > 0 %}
-ReserveVT                     = {{ systemd_journald.reserve_vt }}
+ReserveVT                     = {{ systemd_logind.reserve_vt }}
 {% endif %}
 {% if systemd_logind.kill_user_processes is defined and
       systemd_logind.kill_user_processes | string | length > 0 %}
@@ -29,19 +29,19 @@ KillUserProcesses             = {{ systemd_logind.kill_user_processes | bool | b
 {% endif %}
 {% if systemd_logind.kill_only_users is defined and
       systemd_logind.kill_only_users | string | length > 0 %}
-KillOnlyUsers                 = {{ systemd_journald.kill_only_users }}
+KillOnlyUsers                 = {{ systemd_logind.kill_only_users }}
 {% endif %}
 {% if systemd_logind.kill_exclude_users is defined and
       systemd_logind.kill_exclude_users | string | length > 0 %}
-KillExcludeUsers              = {{ systemd_journald.kill_exclude_users }}
+KillExcludeUsers              = {{ systemd_logind.kill_exclude_users }}
 {% endif %}
 {% if systemd_logind.inhibit_delay_max_sec is defined and
       systemd_logind.inhibit_delay_max_sec | string | length > 0 %}
-InhibitDelayMaxSec            = {{ systemd_journald.inhibit_delay_max_sec }}
+InhibitDelayMaxSec            = {{ systemd_logind.inhibit_delay_max_sec }}
 {% endif %}
 {% if systemd_logind.user_stop_delay_sec is defined and
       systemd_logind.user_stop_delay_sec | string | length > 0 %}
-UserStopDelaySec              = {{ systemd_journald.user_stop_delay_sec }}
+UserStopDelaySec              = {{ systemd_logind.user_stop_delay_sec }}
 {% endif %}
 {% if systemd_logind.handle_power_key is defined and
       systemd_logind.handle_power_key | string | length > 0 and

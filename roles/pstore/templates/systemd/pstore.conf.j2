@@ -17,7 +17,8 @@
 
 [PStore]
 {% if systemd_pstore.storage is defined and
-      systemd_pstore.storage | string | length > 0 %}
+      systemd_pstore.storage | string | length > 0 and
+      systemd_pstore.storage in ["none", "external", "journal"] %}
 Storage                           = {{ systemd_pstore.storage }}
 {% endif %}
 {% if systemd_pstore.unlink is defined and

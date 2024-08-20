@@ -28,152 +28,152 @@ LogTarget                       =  {{ systemd_user.log_target }}
 {% if systemd_user.log_color is defined and
       systemd_user.log_color | string | length > 0 %}
   {% if systemd_user.log_color | bodsch.core.type == "bool" %}
-LogColor                      = {{ systemd_user.log_color | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+LogColor                        = {{ systemd_user.log_color | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
   {% endif %}
 {% endif %}
 {% if systemd_user.log_location is defined and
       systemd_user.log_location | string | length > 0 %}
   {% if systemd_user.log_location | bodsch.core.type == "bool" %}
-LogLocation                   = {{ systemd_user.log_location | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+LogLocation                     = {{ systemd_user.log_location | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
   {% endif %}
 {% endif %}
 {% if systemd_user.log_time is defined and
       systemd_user.log_time | string | length > 0 %}
   {% if systemd_user.log_time | bodsch.core.type == "bool" %}
-LogTime                       = {{ systemd_user.log_time | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+LogTime                         = {{ systemd_user.log_time | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
   {% endif %}
 {% endif %}
 {% if systemd_user.system_call_architectures is defined and
       systemd_user.system_call_architectures | string | length > 0 %}
-SystemCallArchitectures       =  {{ systemd_user.system_call_architectures }}
+SystemCallArchitectures         =  {{ systemd_user.system_call_architectures }}
 {% endif %}
 {% if systemd_user.timer_slack_nsec is defined and
       systemd_user.timer_slack_nsec | string | length > 0 %}
-TimerSlackNSec                =  {{ systemd_user.timer_slack_nsec }}
+TimerSlackNSec                  =  {{ systemd_user.timer_slack_nsec }}
 {% endif %}
 {% if systemd_user.status_unit_format is defined and
       systemd_user.status_unit_format | string | length > 0 %}
-StatusUnitFormat              =  {{ systemd_user.status_unit_format }}
+StatusUnitFormat                =  {{ systemd_user.status_unit_format }}
 {% endif %}
 {% if systemd_user.default_timer_accuracy_sec is defined and
       systemd_user.default_timer_accuracy_sec | string | length > 0 %}
-DefaultTimerAccuracySec       =  {{ systemd_user.default_timer_accuracy_sec }}
+DefaultTimerAccuracySec         =  {{ systemd_user.default_timer_accuracy_sec }}
 {% endif %}
 {% if systemd_user.default_standard_output is defined and
       systemd_user.default_standard_output | string | length > 0 %}
-DefaultStandardOutput         =  {{ systemd_user.default_standard_output }}
+DefaultStandardOutput           =  {{ systemd_user.default_standard_output }}
 {% endif %}
 {% if systemd_user.default_standard_error is defined and
       systemd_user.default_standard_error | string | length > 0 %}
-DefaultStandardError          =  {{ systemd_user.default_standard_error }}
+DefaultStandardError            =  {{ systemd_user.default_standard_error }}
 {% endif %}
 {% if systemd_user.default_timeout_start_sec is defined and
       systemd_user.default_timeout_start_sec | string | length > 0 %}
-DefaultTimeoutStartSec        =  {{ systemd_user.default_timeout_start_sec }}
+DefaultTimeoutStartSec          =  {{ systemd_user.default_timeout_start_sec }}
 {% endif %}
 {% if systemd_user.default_timeout_stop_sec is defined and
       systemd_user.default_timeout_stop_sec | string | length > 0 %}
-DefaultTimeoutStopSec         =  {{ systemd_user.default_timeout_stop_sec }}
+DefaultTimeoutStopSec           =  {{ systemd_user.default_timeout_stop_sec }}
 {% endif %}
 {% if systemd_user.default_timeout_abort_sec is defined and
       systemd_user.default_timeout_abort_sec | string | length > 0 %}
-DefaultTimeoutAbortSec        =  {{ systemd_user.default_timeout_abort_sec }}
+DefaultTimeoutAbortSec          =  {{ systemd_user.default_timeout_abort_sec }}
 {% endif %}
 {% if systemd_user.default_device_timeout_sec is defined and
       systemd_user.default_device_timeout_sec | string | length > 0 %}
-DefaultDeviceTimeoutSec       =  {{ systemd_user.default_device_timeout_sec }}
+DefaultDeviceTimeoutSec         =  {{ systemd_user.default_device_timeout_sec }}
 {% endif %}
 {% if systemd_user.default_restart_sec is defined and
       systemd_user.default_restart_sec | string | length > 0 %}
-DefaultRestartSec             =  {{ systemd_user.default_restart_sec }}
+DefaultRestartSec               =  {{ systemd_user.default_restart_sec }}
 {% endif %}
 {% if systemd_user.default_start_limit_interval_sec is defined and
       systemd_user.default_start_limit_interval_sec | string | length > 0 %}
-DefaultStartLimitIntervalSec  =  {{ systemd_user.default_start_limit_interval_sec }}
+DefaultStartLimitIntervalSec    =  {{ systemd_user.default_start_limit_interval_sec }}
 {% endif %}
 {% if systemd_user.default_start_limit_burst is defined and
       systemd_user.default_start_limit_burst | string | length > 0 %}
-DefaultStartLimitBurst        =  {{ systemd_user.default_start_limit_burst }}
+DefaultStartLimitBurst          =  {{ systemd_user.default_start_limit_burst }}
 {% endif %}
 {% if systemd_user.default_environment is defined and
       systemd_user.default_environment | string | length > 0 %}
-DefaultEnvironment            =  {{ systemd_user.default_environment }}
+DefaultEnvironment              =  {{ systemd_user.default_environment }}
 {% endif %}
 {% if systemd_user.default_limit_cpu is defined and
       systemd_user.default_limit_cpu | string | length > 0 %}
-DefaultLimitCPU               =  {{ systemd_user.default_limit_cpu }}
+DefaultLimitCPU                 =  {{ systemd_user.default_limit_cpu }}
 {% endif %}
 {% if systemd_user.default_limit_fsize is defined and
       systemd_user.default_limit_fsize | string | length > 0 %}
-DefaultLimitFSIZE             =  {{ systemd_user.default_limit_fsize }}
+DefaultLimitFSIZE               =  {{ systemd_user.default_limit_fsize }}
 {% endif %}
 {% if systemd_user.default_limit_data is defined and
       systemd_user.default_limit_data | string | length > 0 %}
-DefaultLimitDATA              =  {{ systemd_user.default_limit_data }}
+DefaultLimitDATA                =  {{ systemd_user.default_limit_data }}
 {% endif %}
 {% if systemd_user.default_limit_stack is defined and
       systemd_user.default_limit_stack | string | length > 0 %}
-DefaultLimitSTACK             =  {{ systemd_user.default_limit_stack }}
+DefaultLimitSTACK               =  {{ systemd_user.default_limit_stack }}
 {% endif %}
 {% if systemd_user.default_limit_core is defined and
       systemd_user.default_limit_core | string | length > 0 %}
-DefaultLimitCORE              =  {{ systemd_user.default_limit_core }}
+DefaultLimitCORE                =  {{ systemd_user.default_limit_core }}
 {% endif %}
 {% if systemd_user.default_limit_rss is defined and
       systemd_user.default_limit_rss | string | length > 0 %}
-DefaultLimitRSS               =  {{ systemd_user.default_limit_rss }}
+DefaultLimitRSS                 =  {{ systemd_user.default_limit_rss }}
 {% endif %}
 {% if systemd_user.default_limit_nofile is defined and
       systemd_user.default_limit_nofile | string | length > 0 %}
-DefaultLimitNOFILE            =  {{ systemd_user.default_limit_nofile }}
+DefaultLimitNOFILE              =  {{ systemd_user.default_limit_nofile }}
 {% endif %}
 {% if systemd_user.default_limit_as is defined and
       systemd_user.default_limit_as | string | length > 0 %}
-DefaultLimitAS                =  {{ systemd_user.default_limit_as }}
+DefaultLimitAS                  =  {{ systemd_user.default_limit_as }}
 {% endif %}
 {% if systemd_user.default_limit_nproc is defined and
       systemd_user.default_limit_nproc | string | length > 0 %}
-DefaultLimitNPROC             =  {{ systemd_user.default_limit_nproc }}
+DefaultLimitNPROC               =  {{ systemd_user.default_limit_nproc }}
 {% endif %}
 {% if systemd_user.default_limit_memlock is defined and
       systemd_user.default_limit_memlock | string | length > 0 %}
-DefaultLimitMEMLOCK           =  {{ systemd_user.default_limit_memlock }}
+DefaultLimitMEMLOCK             =  {{ systemd_user.default_limit_memlock }}
 {% endif %}
 {% if systemd_user.default_limit_locks is defined and
       systemd_user.default_limit_locks | string | length > 0 %}
-DefaultLimitLOCKS             =  {{ systemd_user.default_limit_locks }}
+DefaultLimitLOCKS               =  {{ systemd_user.default_limit_locks }}
 {% endif %}
 {% if systemd_user.default_limit_sigpending is defined and
       systemd_user.default_limit_sigpending | string | length > 0 %}
-DefaultLimitSIGPENDING        =  {{ systemd_user.default_limit_sigpending }}
+DefaultLimitSIGPENDING          =  {{ systemd_user.default_limit_sigpending }}
 {% endif %}
 {% if systemd_user.default_limit_msgqueue is defined and
       systemd_user.default_limit_msgqueue | string | length > 0 %}
-DefaultLimitMSGQUEUE          =  {{ systemd_user.default_limit_msgqueue }}
+DefaultLimitMSGQUEUE            =  {{ systemd_user.default_limit_msgqueue }}
 {% endif %}
 {% if systemd_user.default_limit_nice is defined and
       systemd_user.default_limit_nice | string | length > 0 %}
-DefaultLimitNICE              =  {{ systemd_user.default_limit_nice }}
+DefaultLimitNICE                =  {{ systemd_user.default_limit_nice }}
 {% endif %}
 {% if systemd_user.default_limit_rtprio is defined and
       systemd_user.default_limit_rtprio | string | length > 0 %}
-DefaultLimitRTPRIO            =  {{ systemd_user.default_limit_rtprio }}
+DefaultLimitRTPRIO              =  {{ systemd_user.default_limit_rtprio }}
 {% endif %}
 {% if systemd_user.default_limit_rttime is defined and
       systemd_user.default_limit_rttime | string | length > 0 %}
-DefaultLimitRTTIME            =  {{ systemd_user.default_limit_rttime }}
+DefaultLimitRTTIME              =  {{ systemd_user.default_limit_rttime }}
 {% endif %}
 {% if systemd_user.default_limit_msgqueue is defined and
       systemd_user.default_limit_msgqueue | string | length > 0 %}
-DefaultLimitMSGQUEUE          =  {{ systemd_user.default_limit_msgqueue }}
+DefaultLimitMSGQUEUE            =  {{ systemd_user.default_limit_msgqueue }}
 {% endif %}
 {% if systemd_user.default_limit_nice is defined and
       systemd_user.default_limit_nice | string | length > 0 %}
-DefaultLimitNICE              =  {{ systemd_user.default_limit_nice }}
+DefaultLimitNICE                =  {{ systemd_user.default_limit_nice }}
 {% endif %}
 {% if systemd_user.default_limit_rtprio is defined and
       systemd_user.default_limit_rtprio | string | length > 0 %}
-DefaultLimitRTPRIO            =  {{ systemd_user.default_limit_rtprio }}
+DefaultLimitRTPRIO              =  {{ systemd_user.default_limit_rtprio }}
 {% endif %}
 {% if systemd_user.default_memory_pressure_threshold_sec is defined and
       systemd_user.default_memory_pressure_threshold_sec | string | length > 0 %}
@@ -181,17 +181,17 @@ DefaultMemoryPressureThresholdSec =  {{ systemd_user.default_memory_pressure_thr
 {% endif %}
 {% if systemd_user.default_memory_pressure_watch is defined and
       systemd_user.default_memory_pressure_watch | string | length > 0 %}
-DefaultMemoryPressureWatch    =  {{ systemd_user.default_memory_pressure_watch }}
+DefaultMemoryPressureWatch      =  {{ systemd_user.default_memory_pressure_watch }}
 {% endif %}
 {% if systemd_user.default_smack_process_label is defined and
       systemd_user.default_smack_process_label | string | length > 0 %}
-DefaultSmackProcessLabel      =  {{ systemd_user.default_smack_process_label }}
+DefaultSmackProcessLabel        =  {{ systemd_user.default_smack_process_label }}
 {% endif %}
 {% if systemd_user.reload_limit_interval_sec is defined and
       systemd_user.reload_limit_interval_sec | string | length > 0 %}
-ReloadLimitIntervalSec        =  {{ systemd_user.reload_limit_interval_sec }}
+ReloadLimitIntervalSec          =  {{ systemd_user.reload_limit_interval_sec }}
 {% endif %}
 {% if systemd_user.reload_limit_burst is defined and
       systemd_user.reload_limit_burst | string | length > 0 %}
-ReloadLimitBurst              =  {{ systemd_user.reload_limit_burst }}
+ReloadLimitBurst                =  {{ systemd_user.reload_limit_burst }}
 {% endif %}

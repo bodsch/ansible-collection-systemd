@@ -1,0 +1,7 @@
+---
+
+systemd_pstore:
+  storage: "journal"    # external
+  unlink: ""            # true
+
+...

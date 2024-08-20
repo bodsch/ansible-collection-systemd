@@ -1,0 +1,35 @@
+---
+
+systemd_journald:
+  storage: "auto"                 # auto
+  compress: "true"                # true
+  seal: ""                    # true
+  split_mode: ""              # uid
+  sync_interval_sec: "2m"       # 5m
+  rate_limit_interval_sec: "" # 30s
+  rate_limit_burst: ""        # 10000
+  system_max_use: ""
+  system_keep_free: ""
+  system_max_file_size: ""
+  system_max_files: "4"        # 100
+  runtime_max_use: ""
+  runtime_keep_free: ""
+  runtime_max_file_size: ""
+  runtime_max_files: ""       # 100
+  max_retention_sec: ""
+  max_file_sec: ""            # 1month
+  forward_to_syslog: ""       # true
+  forward_to_kmsg: ""         # false
+  forward_to_console: ""      # false
+  forward_to_wall: ""         # true
+  tty_path: ""                # /dev/console
+  max_level_store: ""         # debug
+  max_level_syslog: ""        # debug
+  max_level_kmsg: ""          # notice
+  max_level_console: ""       # info
+  max_level_wall: ""          # emerg
+  line_max: ""                # 48K
+  read_kmsg: ""               # true
+  audit: "true"                   # false
+
+...

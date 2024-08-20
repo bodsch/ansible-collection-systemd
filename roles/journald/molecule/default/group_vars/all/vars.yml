@@ -1,12 +1,3 @@
 ---
 
-systemd_coredump:
-  storage: external
-  compress: true
-  process_size_max: 32G
-  external_size_max: 32G
-  journal_size_max: 767M
-  max_use: ""
-  keep_free: ""
-
 ...
