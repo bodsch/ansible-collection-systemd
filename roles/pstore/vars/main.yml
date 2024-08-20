@@ -1,7 +1,7 @@
 ---
 
 systemd_defaults_pstore:
-  storage: ""           # external
+  storage: ""           # external | One of "none", "external", and "journal"
   unlink: ""            # true
 
 ...

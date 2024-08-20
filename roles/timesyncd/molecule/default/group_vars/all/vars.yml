@@ -1,12 +1,3 @@
 ---
 
-systemd_timesyncd:
-  ntp:  []
-  fallback_ntp:
-    - 0.arch.pool.ntp.org
-    - 1.arch.pool.ntp.org
-    - 2.arch.pool.ntp.org
-    - 3.arch.pool.ntp.org
-
-
 ...

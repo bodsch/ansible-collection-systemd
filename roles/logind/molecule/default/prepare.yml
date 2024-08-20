@@ -27,6 +27,14 @@
           when:
             - ansible_os_family | lower == 'artix linux'
 
+    - name: make sure python3-apt is installed (only debian based)
+      ansible.builtin.package:
+        name:
+          - python3-apt
+        state: present
+      when:
+        - ansible_os_family | lower == 'debian'
+
     - name: update package cache
       become: true
       ansible.builtin.package:

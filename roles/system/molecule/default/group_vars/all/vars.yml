@@ -1,10 +1,3 @@
 ---
 
-systemd_system:
-  log_level: "debug"     # info
-  log_target: ""         # auto
-  log_color: true        # true
-  log_location: true     # false
-  log_time: true         # false
-
 ...

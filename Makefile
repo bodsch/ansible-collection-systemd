@@ -1,15 +1,12 @@
 #
-export TOX_SCENARIO         ?= default
-export TOX_ANSIBLE          ?= ansible_6.7
-
 export COLLECTION_NAMESPACE ?= bodsch
 export COLLECTION_NAME      ?= systemd
 export COLLECTION_ROLE      ?=
 export COLLECTION_SCENARIO  ?= default
 
-.PHONY: install uninstall doc converge test destroy verify lint
+.PHONY: install uninstall doc converge destroy verify test lint gh-clean
 
-# default: install
+default: converge
 
 install:
 	@hooks/install
@@ -23,14 +20,17 @@ doc:
 converge:
 	@hooks/converge
 
-test:
-	@hooks/test
-
 destroy:
 	@hooks/destroy
 
 verify:
 	@hooks/verify
 
+test:
+	@hooks/test
+
 lint:
 	@hooks/lint
+
+gh-clean:
+	@hooks/gh-clean

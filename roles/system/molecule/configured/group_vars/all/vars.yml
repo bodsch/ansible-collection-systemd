@@ -1,0 +1,63 @@
+---
+
+systemd_system:
+  log_level: "debug"                          # info
+  log_target: ""                              # auto
+  log_color: "false"                               # true
+  log_location: ""                            # false
+  log_time: "true"                                # false
+  dump_core: "false"                               # true
+  show_status: "false"                             # true
+  crash_change_vt: ""                         # false
+  crash_shell: ""                             # false
+  crash_reboot: ""                            # false
+  ctrl_alt_del_burst_action: ""               # eboot-force
+  cpu_affinity: ""                            #
+  numa_policy: ""                             # default
+  numa_mask: ""                               #
+  runtime_watchdog_sec: ""                    # off
+  runtime_watchdog_pre_sec: ""                # off
+  runtime_watchdog_pre_governor: ""           #
+  reboot_watchdog_sec: ""                     # 10min
+  kexec_watchdog_sec: ""                      # off
+  watchdog_device: ""                         #
+  capability_bounding_set: ""                 #
+  no_new_privileges: ""                       # false
+  system_call_architectures: ""
+  timer_slack_nsec: ""
+  status_unit_format: ""                      # description
+  default_timer_accuracy_sec: ""              # 1min
+  default_standard_output: ""                 # inherit
+  default_standard_error: ""                  # inherit
+  default_timeout_start_sec: ""               # 90s
+  default_timeout_stop_sec: ""                # 90s
+  default_timeout_abort_sec: ""
+  default_device_timeout_sec: ""              # 90s
+  default_restart_sec: ""                     # 100ms
+  default_start_limit_interval_sec: ""        # 10s
+  default_start_limit_burst: ""               # 5
+  default_environment: ""
+  default_limit_cpu: ""
+  default_limit_fsize: ""
+  default_limit_data: ""
+  default_limit_stack: ""
+  default_limit_core: ""
+  default_limit_rss: ""
+  default_limit_nofile: ""
+  default_limit_as: ""
+  default_limit_nproc: ""
+  default_limit_memlock: ""
+  default_limit_locks: ""
+  default_limit_sigpending: ""
+  default_limit_msgqueue: ""
+  default_limit_nice: ""
+  default_limit_rtprio: ""
+  default_limit_rttime: ""
+  default_memory_pressure_threshold_sec: ""   # 200ms
+  default_memory_pressure_watch: ""           # auto
+  default_oom_policy: ""                      # stop
+  default_smack_process_label: ""
+  reload_limit_interval_sec: ""
+  reload_limit_burst: ""
+
+...

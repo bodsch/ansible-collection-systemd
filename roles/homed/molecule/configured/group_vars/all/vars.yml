@@ -1,0 +1,7 @@
+---
+
+systemd_homed:
+  default_storage: "directory"
+  default_filesystem_type: "ext4"
+
+...

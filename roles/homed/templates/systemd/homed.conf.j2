@@ -19,7 +19,8 @@
 
 [Home]
 {% if systemd_homed.default_storage is defined and
-      systemd_homed.default_storage | string | length > 0 %}
+      systemd_homed.default_storage | string | length > 0  and
+      systemd_homed.default_storage in ["luks", "fscrypt", "directory", "subvolume", "cifs"] %}
 DefaultStorage                    = {{ systemd_homed.default_storage }}
 {% endif %}
 {% if systemd_homed.default_filesystem_type is defined and

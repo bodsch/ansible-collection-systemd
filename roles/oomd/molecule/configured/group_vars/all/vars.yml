@@ -1,0 +1,8 @@
+---
+
+systemd_oomd:
+  swap_used_limit: "95%"                             # 90%
+  default_memory_pressure_limit: ""               # 60%
+  default_memory_pressure_durationSec: ""         # 30s
+
+...

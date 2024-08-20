@@ -12,6 +12,7 @@ rsync \
   --recursive \
   --exclude hooks \
   --exclude __pycache__ \
+  --exclude molecule \
   --delete \
   ../ansible-collection-${COLLECTION_NAME}/* \
   "${COLLECTION_DIR}/"
