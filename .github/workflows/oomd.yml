@@ -24,9 +24,8 @@ on:
       - "!Makefile"
       - "!README.md"
       - 'roles/oomd/**'
-      - '.github/workflows/test_role_oomd.yml'
-      - '.config/ansible-lint.yml'
-      - '.yamllint'
+      - '.github/workflows/oomd.yml'
+
   pull_request:
     branches:
       - 'main'
@@ -37,9 +36,7 @@ on:
       - "!Makefile"
       - "!README.md"
       - 'roles/oomd/**'
-      - '.github/workflows/test_role_oomd.yml'
-      - '.config/ansible-lint.yml'
-      - '.yamllint'
+      - '.github/workflows/oomd.yml'
 
 env:
   COLLECTION_NAMESPACE: bodsch

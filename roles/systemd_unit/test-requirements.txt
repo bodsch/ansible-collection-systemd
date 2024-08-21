@@ -1,0 +1,11 @@
+ansible-lint
+docker
+dnspython
+flake8
+molecule
+molecule-plugins[docker]
+netaddr
+pytest-testinfra
+tox
+tox-gh-actions
+yamllint

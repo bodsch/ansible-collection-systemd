@@ -2,8 +2,6 @@
 
 . hooks/molecule.rc
 
-set -x
-
 if [ -z "${COLLECTION_DIR}" ]
 then
   echo "missing collection directory"

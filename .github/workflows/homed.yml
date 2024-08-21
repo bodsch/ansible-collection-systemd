@@ -24,9 +24,8 @@ on:
       - "!Makefile"
       - "!README.md"
       - 'roles/homed/**'
-      - '.github/workflows/test_role_homed.yml'
-      - '.config/ansible-lint.yml'
-      - '.yamllint'
+      - '.github/workflows/homed.yml'
+
   pull_request:
     branches:
       - 'main'
@@ -37,13 +36,13 @@ on:
       - "!Makefile"
       - "!README.md"
       - 'roles/homed/**'
-      - '.github/workflows/test_role_homed.yml'
-      - '.config/ansible-lint.yml'
-      - '.yamllint'
+      - '.github/workflows/homed.yml'
 
 env:
   COLLECTION_NAMESPACE: bodsch
   COLLECTION_NAME: systemd
+  PY_COLORS: '1'
+  ANSIBLE_FORCE_COLOR: '1'
 
 jobs:
   debian:

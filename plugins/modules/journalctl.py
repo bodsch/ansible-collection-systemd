@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 # (c) 2020-2023, Bodo Schulz <bodo@boone-schulz.de>
@@ -12,7 +12,7 @@ from ansible.module_utils.basic import AnsibleModule
 DOCUMENTATION = """
 module: journalctl
 author:
-  - Bodo 'bodsch' Schulz <bodo@boone-schulz.de>
+  - Bodo 'bodsch' Schulz (@bodsch)
 short_description: Query the systemd journal with a very limited number of possible parameters.
 version_added: 1.1.0
 
@@ -104,15 +104,6 @@ class JournalCtl(object):
         self.lines = module.params.get("lines")
         self.reverse = module.params.get("reverse")
         self.arguments = module.params.get("arguments")
-
-        # module.log(msg="----------------------------")
-        # module.log(msg=f" journalctl   : {self._journalctl}")
-        # module.log(msg=f" unit         : {self.unit}")
-        # module.log(msg=f" identifier   : {self.identifier}")
-        # module.log(msg=f" lines        : {self.lines}")
-        # module.log(msg=f" reverse      : {self.reverse}")
-        # module.log(msg=f" arguments    : {self.arguments}")
-        # module.log(msg="----------------------------")
 
     def run(self):
         """
@@ -214,7 +205,7 @@ def main():
     k = JournalCtl(module)
     result = k.run()
 
-    module.log(msg=f"= result: {result}")
+    # module.log(msg=f"= result: {result}")
 
     module.exit_json(**result)
 
