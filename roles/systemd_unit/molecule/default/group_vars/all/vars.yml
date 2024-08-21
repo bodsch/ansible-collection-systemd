@@ -1,172 +1,75 @@
 ---
 
 systemd_unit:
-  - name: "getty@tty1"
-    state: present
-    unit_type: service
-    overwrite: true
-    drop_ins:
-      - name: autologin
-        state: present
-        Service:
-          ExecStart:
-            - ""
-            - "{% raw %}-/sbin/agetty -o '-p -f -- \\\\u' --noclear --autologin username %I $TERM{% endraw %}"
-          Type: simple
-
-      - name: noclear
-        state: absent
-        Service:
-          TTYVTDisallocate: false
-
-  - name: sshd
-    state: present
+  - name: vaultwarden
+    state: absent
     unit_type: service
     overwrite: false
     unit_file:
-      unit:
-        Description: OpenBSD Secure Shell server
-        Documentation: man:sshd(8) man:sshd_config(5)
-        After:
-          - network.target
-          - auditd.service
-        ConditionPathExists: "!/etc/ssh/sshd_not_to_be_run"
-      service:
-        EnvironmentFile: -/etc/default/ssh
-        ExecStartPre: /usr/sbin/sshd -t
-        ExecStart: /usr/sbin/sshd -D $SSHD_OPTS
-        ExecReload:
-          - /usr/sbin/sshd -t
-          - /bin/kill -HUP $MAINPID
-        KillMode: process
+      description: |
+        #
+        #
+        #
+        #
+        #
+        #
+
+      Unit:
+        Description: Vaultwarden API server
+        Documentation: https://github.com/dani-garcia/vaultwarden
+        After: network.target
+
+      Service:
+        Type: simple
+        User: vaultwarden
+        Group: vaultwarden
+        LimitNOFILE: 1048576
+        UMask: "0077"
+
+        ExecStart: /usr/bin/vaultwarden
+        EnvironmentFile: /etc/vaultwarden/config.env
+
         Restart: on-failure
-        RestartPreventExitStatus: 255
-        Type: notify
-        RuntimeDirectory: sshd
-        RuntimeDirectoryMode: "0755"
-      install:
+        RestartSec: 15s
+
+        CapabilityBoundingSet: CAP_NET_BIND_SERVICE
+        AmbientCapabilities: CAP_NET_BIND_SERVICE
+
+        LockPersonality: true
+        MemoryDenyWriteExecute: true
+        PrivateDevices: true
+        PrivateTmp: true
+        ProtectClock: true
+        ProtectControlGroups: true
+        ProtectHome: true
+        ProtectHostname: true
+        ProtectKernelLogs: true
+        ProtectKernelModules: true
+        ProtectKernelTunables: true
+        ProtectSystem: strict
+        RemoveIPC: true
+        RestrictAddressFamilies: AF_UNIX AF_INET AF_INET6
+        RestrictNamespaces: true
+        RestrictRealtime: true
+        RestrictSUIDSGID: true
+
+        NoNewPrivileges: true
+
+        SystemCallFilter:
+          - "@system-service"
+          - "~@privileged @resources"
+        SystemCallArchitectures: native
+
+        WorkingDirectory: /var/lib/vaultwarden
+        ReadWriteDirectories: /var/lib/vaultwarden
+        # ReadWriteDirectories: {{ vaultwarden_config.logging.log_file | dirname }}
+        # {% if vaultwarden_config.web_vault.enabled is defined and
+        #       vaultwarden_config.web_vault.enabled | string | length > 0 and
+        #       vaultwarden_config.web_vault.enabled | bool == True %}
+        # ReadWriteDirectories: {{ vaultwarden_config.directories.web_vault }}/web-vault
+        # {% endif %}
+
+      Install:
         WantedBy: multi-user.target
-        Alias: sshd.service
 
-  - name: systemd-tmpfiles-clean
-    state: present
-    unit_type: timer
-    unit_file:
-      unit:
-        Description: Daily Cleanup of Temporary Directories
-        Documentation: man:tmpfiles.d(5) man:systemd-tmpfiles(8)
-        ConditionPathExists: "!/etc/initrd-release"
-      timer:
-        OnBootSec: 15min
-        OnUnitActiveSec: 1d
-
-  - name: systemd-initctl
-    state: present
-    unit_type: socket
-    unit_file:
-      unit:
-        Description: initctl Compatibility Named Pipe
-        Documentation: man:systemd-initctl.socket(8)
-        DefaultDependencies: no
-        Before: sockets.target
-
-      Socket:
-        ListenFIFO: /run/initctl
-        Symlinks: /dev/initctl
-        SocketMode: "0600"
-
-
-
-  # - name: chronyd
-  #   state: present
-  #   unit_type: service
-  #   overwrite: false
-  #
-  #   unit:
-  #     Description: "NTP client/server"
-  #     Documentation: "man:chronyd(8) man:chrony.conf(5)"
-  #     After:
-  #       - ntpdate.service
-  #       - sntp.service
-  #       - ntpd.service
-  #     Conflicts:
-  #       - ntpd.service
-  #       - systemd-timesyncd.service
-  #     ConditionCapability:
-  #       - CAP_SYS_TIME
-  #   service:
-  #     Type: forking
-  #     PIDFile: /run/chrony/chronyd.pid
-  #     EnvironmentFile:
-  #       - "-/etc/sysconfig/chronyd"
-  #     ExecStart:
-  #       - "/usr/bin/chronyd $OPTIONS"
-  #
-  #     CapabilityBoundingSet:
-  #       - CAP_AUDIT_CONTROL
-  #       - CAP_AUDIT_READ
-  #       - CAP_AUDIT_WRITE
-  #       - CAP_BLOCK_SUSPEND
-  #       - CAP_KILL
-  #       - CAP_LEASE
-  #       - CAP_LINUX_IMMUTABLE
-  #       - CAP_MAC_ADMIN
-  #       - CAP_MAC_OVERRIDE
-  #       - CAP_MKNOD
-  #       - CAP_SYS_ADMIN
-  #       - CAP_SYS_BOOT
-  #       - CAP_SYS_CHROOT
-  #       - CAP_SYS_MODULE
-  #       - CAP_SYS_PACCT
-  #       - CAP_SYS_PTRACE
-  #       - CAP_SYS_RAWIO
-  #       - CAP_SYS_TTY_CONFIG
-  #       - CAP_WAKE_ALARM
-  #     DeviceAllow:
-  #       - char-pps rw
-  #       - char-ptp rw
-  #       - char-rtc rw
-  #     DevicePolicy: closed
-  #     LockPersonality: true
-  #     MemoryDenyWriteExecute: true
-  #     NoNewPrivileges: true
-  #     PrivateTmp: true
-  #     ProtectControlGroups: true
-  #     ProtectHome: true
-  #     ProtectHostname: true
-  #     ProtectKernelLogs: true
-  #     ProtectKernelModules: true
-  #     ProtectKernelTunables: true
-  #     ProtectProc: invisible
-  #     ProtectSystem: strict
-  #     ReadWritePaths:
-  #       - /run
-  #       - /var/lib/chrony
-  #       - -/var/log
-  #     RestrictAddressFamilies:
-  #       - AF_INET
-  #       - AF_INET6
-  #       - AF_UNIX
-  #     RestrictNamespaces: true
-  #     RestrictSUIDSGID: true
-  #     SystemCallArchitectures: native
-  #     SystemCallFilter:
-  #       - "@cpu-emulation"
-  #       - "@debug"
-  #       - "@module"
-  #       - "@mount"
-  #       - "@obsolete"
-  #       - "@raw-io"
-  #       - "@reboot"
-  #       - "@swap"
-  #
-  #     # Adjust restrictions for /usr/bin/sendmail (mailonchange directive)
-  #     # NoNewPrivileges: false
-  #     # ReadWritePaths:
-  #     #   - -/var/spool
-  #     # RestrictAddressFamilies:
-  #     #   - AF_NETLINK
-  #
-  #   install:
-  #     WantedBy: multi-user.target
 ...

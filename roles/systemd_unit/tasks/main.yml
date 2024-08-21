@@ -1,5 +1,59 @@
 ---
 
+- name: create getty drop-ins
+  bodsch.systemd.unit_file:
+    name: "getty@tty1"
+    state: "present"
+    unit_type: "service"
+    drop_ins:
+      - name: autologin
+        state: present
+        service:
+          ExecStart:
+            - ""
+            - "{% raw %}-/sbin/agetty -o '-p -f -- \\\\u' --noclear --autologin username %I $TERM{% endraw %}"
+          Type: simple
+
+      - name: noclear
+        state: absent
+        service:
+          TTYVTDisallocate: false
+  when:
+    - ansible_service_mgr == 'systemd'
+
+- name: create systemd unit
+  bodsch.systemd.unit_file:
+    name: "nextcloud-cron"
+    state: "present"
+    unit_type: "service"
+    unit_file:
+      unit:
+        Description: Nextcloud cron.php job
+      service:
+        User: www-data
+        ExecCondition: php -f /var/www/nextcloud/server/occ status --exit-code
+        ExecStart: /usr/bin/php -f /var/www/nextcloud/server/cron.php
+        KillMode: process
+  when:
+    - ansible_service_mgr == 'systemd'
+
+- name: create systemd timer
+  bodsch.systemd.unit_file:
+    name: "nextcloud-cron"
+    state: "present"
+    unit_type: "timer"
+    unit_file:
+      unit:
+        Description: Run Nextcloud cron.php every 5 minutes
+      timer:
+        OnBootSec: 5min
+        OnUnitActiveSec: 5min
+        Unit: nextcloud-cron.service
+      install:
+        WantedBy: timers.target
+  when:
+    - ansible_service_mgr == 'systemd'
+
 - name: create systemd unit files
   bodsch.systemd.unit_file:
     name: "{{ item.name }}"
@@ -8,9 +62,6 @@
     overwrite: "{{ item.overwrite | default(omit) }}"
     drop_ins: "{{ item.drop_ins | default(omit) }}"
     unit_file: "{{ item.unit_file | default(omit) }}"
-    # unit: "{{ item.unit | default(omit) }}"
-    # service: "{{ item.service | default(omit) }}"
-    # install: "{{ item.install | default(omit) }}"
   loop:
     "{{ systemd_unit }}"
   loop_control:
@@ -20,8 +71,8 @@
   when:
     - systemd_unit | count > 0
 
-- name: d
-  debug:
-    msg: "{{ systemd_unit_file }}"
+# - name: d
+#   debug:
+#     msg: "{{ systemd_unit_file }}"
 
 ...
