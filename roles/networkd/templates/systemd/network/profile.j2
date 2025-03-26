@@ -1,0 +1,32 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# {{ ansible_managed }}
+{% set config = {} %}
+{% if item.value.get('state', None) %}
+{% set _ = item.value.pop('state') %}
+{% endif %}
+{% if item.value.get('description', None) %}
+{% set description = item.value.get('description') %}
+{% set _ = item.value.pop('description') %}
+# {{ description }}
+{% endif %}
+{% if item.value.get('config', None) %}
+{% set config = item.value.get('config') %}
+{% endif %}
+
+{% for section_dict in config %}
+  {% if config.get(section_dict) | bodsch.core.type == "dict" %}
+[{{ section_dict }}]
+    {% for section, options in config.get(section_dict).items() %}
+      {% if options | bodsch.core.type == "str" %}
+{{ section }} = {{ options }}
+      {% elif options | bodsch.core.type == "bool" %}
+{{ section }} = {{ options | bool | bodsch.core.config_bool(true_as='yes', false_as='no') }}
+      {% elif options | bodsch.core.type == "list" %}
+        {% for o in options %}
+{{ section }} = {{ o }}
+        {% endfor %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+
+{% endfor %}

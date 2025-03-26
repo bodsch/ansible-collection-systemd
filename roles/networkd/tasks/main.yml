@@ -8,8 +8,79 @@
   ansible.builtin.template:
     src: systemd/networkd.conf.j2
     dest: /etc/systemd/networkd.conf
-    mode: 0644
+    mode: "0644"
     owner: root
     group: root
+
+# - name: d
+#   debug:
+#     msg:
+#       - "{{ systemd_networkd_profiles.netdev.items() }}"
+#       - "{{ systemd_networkd_profiles.netdev.items() | count }}"
+
+- name: networkd profiles
+  when:
+    - systemd_networkd_profiles is defined
+    - systemd_networkd_profiles.link.items() | count != 0 or
+      systemd_networkd_profiles.netdev.items() | count != 0 or
+      systemd_networkd_profiles.network.items() | count != 0
+  block:
+    - name: remove .link profiles
+      ansible.builtin.file:
+        path: "/etc/systemd/network/{{ item.key }}.link"
+        state: absent
+      with_dict: "{{ systemd_networkd_profiles.link }}"
+      when:
+        - item.value is defined
+        - item.value.state | default('absent') == 'absent'
+
+    - name: remove .netdev profiles
+      ansible.builtin.file:
+        path: "/etc/systemd/network/{{ item.key }}.netdev"
+        state: absent
+      with_dict: "{{ systemd_networkd_profiles.netdev }}"
+      when:
+        - item.value is defined
+        - item.value.state | default('absent') == 'absent'
+
+    - name: remove .network profiles
+      ansible.builtin.file:
+        path: "/etc/systemd/network/{{ item.key }}.network"
+        state: absent
+      with_dict: "{{ systemd_networkd_profiles.network }}"
+      when:
+        - item.value is defined
+        - item.value.state | default('absent') == 'absent'
+
+    - name: create .link profiles
+      ansible.builtin.template:
+        src: systemd/network/profile.j2
+        dest: "/etc/systemd/network/{{ item.key }}.link"
+        mode: "0644"
+      with_dict: "{{ systemd_networkd_profiles.link }}"
+      when:
+        - item.value is defined
+        - item.value.state | default('present') == 'present'
+
+    - name: create .netdev profiles
+      ansible.builtin.template:
+        src: systemd/network/profile.j2
+        dest: "/etc/systemd/network/{{ item.key }}.netdev"
+        mode: "0644"
+      with_dict: "{{ systemd_networkd_profiles.netdev }}"
+      when:
+        - item.value is defined
+        - item.value.state | default('present') == 'present'
+
+    - name: create .network profiles
+      ansible.builtin.template:
+        src: systemd/network/profile.j2
+        dest: "/etc/systemd/network/{{ item.key }}.network"
+        mode: "0644"
+      register: systemd_networkd_profiles_changed
+      with_dict: "{{ systemd_networkd_profiles.network }}"
+      when:
+        - item.value is defined
+        - item.value.state | default('present') == 'present'
 
 ...

@@ -7,8 +7,6 @@
 
 TOX_TEST="${1}"
 
-
-
 if [[ ! -z "${COLLECTION_ROLE// }" ]]
 then
   if [ -d "roles/${COLLECTION_ROLE}" ]
