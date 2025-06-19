@@ -3,9 +3,6 @@ from __future__ import (absolute_import, division, print_function)
 from ansible.utils.display import Display
 
 import re
-import os
-
-from ansible.plugins.test.core import version_compare
 
 __metaclass__ = type
 
