@@ -3,11 +3,17 @@
 . hooks/molecule.rc
 
 # set -x
-# set -e
+set -e
+
+current_dir=$(pwd)
 
 TOX_TEST="${1}"
 
-
+if [ -e collections.yml ]
+then
+  echo ""
+  ${current_dir}/hooks/manage_collections.py
+fi
 
 if [[ ! -z "${COLLECTION_ROLE// }" ]]
 then
@@ -16,11 +22,13 @@ then
     echo "- ${COLLECTION_ROLE} - ${COLLECTION_SCENARIO}"
     echo ""
 
+    cp -v requirements.txt test-requirements.txt tox.ini "roles/${COLLECTION_ROLE}/"
+
     pushd "roles/${COLLECTION_ROLE}" > /dev/null
 
     if [ -e collections.yml ]
     then
-      ansible_collection
+      ${current_dir}/hooks/manage_collections.py --scenario ${COLLECTION_SCENARIO}
     fi
 
     tox "${TOX_OPTS}" -- molecule ${TOX_TEST} --scenario-name ${COLLECTION_SCENARIO}
@@ -36,11 +44,13 @@ else
     echo "- ${role} - ${COLLECTION_SCENARIO}"
     echo ""
 
+    cp -v requirements.txt test-requirements.txt tox.ini "roles/${COLLECTION_ROLE}/"
+
     pushd roles/${role} > /dev/null
 
     if [ -e collections.yml ]
     then
-      ansible_collection
+      ${current_dir}/hooks/manage_collections.py --scenario ${COLLECTION_SCENARIO}
     fi
 
     if [ "${TOX_TEST}" = "lint" ]
