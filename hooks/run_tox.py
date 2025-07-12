@@ -14,7 +14,8 @@ from contextlib import contextmanager
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-VERSION = "2.1.0"
+VERSION = "2.2.0"
+
 
 @contextmanager
 def chdir(path: Path):
@@ -107,7 +108,6 @@ class ToxRunner:
         'TOX_ANSIBLE',
         'COLLECTION_NAMESPACE',
         'COLLECTION_NAME',
-        # 'COLLECTION_ROLE',
         'COLLECTION_SCENARIO',
     ]
 
@@ -121,6 +121,7 @@ class ToxRunner:
         self.scenario = os.environ.get(
             'COLLECTION_SCENARIO', 'default').strip()
         self.tox_test = tox_test or os.environ.get('TOX_TEST', '').strip()
+        self.tox_silence = os.environ.get('TOX_SILENCE', "true").lower() in ("1", "true", "yes", "on")
 
         sys.path.insert(0, str(self.hooks_dir))
 
@@ -221,8 +222,8 @@ class ToxRunner:
         if self.tox_test in ["converge", "destroy", "test", "verify"]:
             """
             """
-            print(
-                f"[INFO] Running tests for role {role_name} and scenario {self.scenario}\n")
+            logging.info(
+                f"Running for role {role_name} and scenario {self.scenario}\n")
             # env = self.filtered_env
             env = os.environ.copy()
             with chdir(role_path):
@@ -232,6 +233,8 @@ class ToxRunner:
                 if local_tox_file.exists() and local_requirements_file.exists():
                     # print(f"[INFO] tox default scenario at {role_path}")
                     self._run_tox(role_path, env)
+                else:
+                    logger.error("missing tox.ini or test-requirements.txt")
 
             self._remove_configs(role_path)
 
@@ -242,23 +245,27 @@ class ToxRunner:
     def _copy_configs(self, role_path: Path) -> None:
         """
         """
-        # print(f"ToxRunner::_copy_configs({role_path})")
+        logging.debug(f"ToxRunner::_copy_configs({role_path})")
 
-        for fname in ['requirements.txt', 'test-requirements.txt', 'tox.ini']:
+        for fname in ['test-requirements.txt', 'tox.ini']:
             src = self.cwd / fname
+
+            logging.debug(f"  - {src}")
             if src.exists():
                 try:
                     shutil.copy(src, role_path / fname)
-                    logging.debug(f" Copied {fname} to {role_path}")
+                    logging.debug(f"Copied {fname} to {role_path}")
                 except IOError as e:
                     logging.warning(f"Could not copy {fname}: {e}")
+            else:
+                logging.warning(f"missing: {src}")
 
     def _remove_configs(self, role_path: Path) -> None:
         """
         """
         # print(f"ToxRunner::_remove_configs({role_path})")
 
-        for fname in ['requirements.txt', 'test-requirements.txt', 'tox.ini']:
+        for fname in ['test-requirements.txt', 'tox.ini']:
             dst = role_path / fname
             if dst.is_file():
                 try:
@@ -280,13 +287,38 @@ class ToxRunner:
         if scenario:
             cmd += ["--scenario-name", scenario]
 
+        cmd_str = ' '.join(cmd)
+
         try:
-            subprocess.run(cmd, cwd=str(cwd), env=env, check=True)
+            logging.info(f"run tox: {cmd_str}")
+
+            subprocess.run(
+                cmd,
+                cwd=str(cwd),
+                env=env,
+                capture_output=self.tox_silence,
+                text=True,
+                check=True
+            )
             print("")
         except subprocess.CalledProcessError as e:
-            logging.error(f"tox failed in {cwd}: {e}")
+            """
+            """
+
+            logging.error(f"tox failed in {cwd}")
+            logging.error("Command:")
+            logging.error(f"  {cmd_str}")
             print("")
+            logging.error('   STDOUT:')
+            logging.error(f"  {e.stdout.strip()}")
+            print("")
+            logging.error('   STDERR:')
+            logging.error(f"  {e.stderr.strip()}")
+            print("")
+
             sys.exit(1)
+
+        logging.info("successfuly.")
 
 
 if __name__ == "__main__":
