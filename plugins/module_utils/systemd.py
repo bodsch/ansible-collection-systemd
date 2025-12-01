@@ -8,11 +8,12 @@ Install:
 """
 
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+
 import os
 import re
 import time
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import dbus
 from dbus import Interface
@@ -61,7 +62,10 @@ class DBusIOError(SystemdError):
 def _map_dbus_error(e: DBusException, ctx: str = "") -> SystemdError:
     name = getattr(e, "get_dbus_name", lambda: "")() or ""
     msg = f"{ctx}: {e}" if ctx else str(e)
-    if name in ("org.freedesktop.systemd1.NoSuchUnit", "org.freedesktop.DBus.Error.UnknownObject"):
+    if name in (
+        "org.freedesktop.systemd1.NoSuchUnit",
+        "org.freedesktop.DBus.Error.UnknownObject",
+    ):
         return UnitNotFoundError(msg)
     if name == "org.freedesktop.DBus.Error.AccessDenied":
         return AccessDeniedError(msg)
@@ -69,13 +73,16 @@ def _map_dbus_error(e: DBusException, ctx: str = "") -> SystemdError:
         return JobFailedError(msg)
     return DBusIOError(msg)
 
+
 # ---------- Helpers ----------
 
 
 def _py(v: Any) -> Any:
     if isinstance(v, (dbus.String, dbus.ObjectPath)):
         return str(v)
-    if isinstance(v, (dbus.Int16, dbus.Int32, dbus.Int64, dbus.UInt16, dbus.UInt32, dbus.UInt64)):
+    if isinstance(
+        v, (dbus.Int16, dbus.Int32, dbus.Int64, dbus.UInt16, dbus.UInt32, dbus.UInt64)
+    ):
         return int(v)
     if isinstance(v, dbus.Boolean):
         return bool(v)
@@ -96,6 +103,7 @@ def _basename_or_name(s: str) -> str:
 
 def _kind_from_name(name: str) -> str:
     return name.split(".")[-1] if "." in name else ""
+
 
 # ---------- Data ----------
 
@@ -130,15 +138,17 @@ class InstallChange:
 @dataclass(frozen=True)
 class UnitStatus:
     """Kombinierte Sicht auf Unit + UnitFile."""
+
     name: str
-    kind: str                           # service|socket|timer|...
+    kind: str  # service|socket|timer|...
     description: str
-    active_state: str                   # active|inactive|failed|...
-    sub_state: str                      # running|dead|...
-    unit_file_state: Optional[str]      # enabled|disabled|masked|generated|transient|None
-    load_state: Optional[str]           # loaded|not-found|...
-    is_enabled: bool                    # True falls "effectively enabled"
-    is_masked: bool                     # True falls masked/masked-runtime
+    active_state: str  # active|inactive|failed|...
+    sub_state: str  # running|dead|...
+    unit_file_state: Optional[str]  # enabled|disabled|masked|generated|transient|None
+    load_state: Optional[str]  # loaded|not-found|...
+    is_enabled: bool  # True falls "effectively enabled"
+    is_masked: bool  # True falls masked/masked-runtime
+
 
 # ---------- Client ----------
 
@@ -150,7 +160,9 @@ class SystemdClient:
 
         if use_glib:
             if DBusGMainLoop is None:
-                raise RuntimeError("GLib nicht verfügbar. Installiere 'python3-gi' und 'python3-dbus'.")
+                raise RuntimeError(
+                    "GLib nicht verfügbar. Installiere 'python3-gi' und 'python3-dbus'."
+                )
             DBusGMainLoop(set_as_default=True)
 
         self._bus = dbus.SessionBus() if user_manager else dbus.SystemBus()
@@ -225,9 +237,20 @@ class SystemdClient:
                 return default
             raise
 
-    def get_unit_properties(self, unit: str, keys: Optional[Iterable[str]] = None) -> Dict[str, Any]:
-        default = ("Id", "Description", "LoadState", "ActiveState", "SubState", "FragmentPath", "UnitFileState",
-                   "InactiveEnterTimestamp", "ActiveEnterTimestamp")
+    def get_unit_properties(
+        self, unit: str, keys: Optional[Iterable[str]] = None
+    ) -> Dict[str, Any]:
+        default = (
+            "Id",
+            "Description",
+            "LoadState",
+            "ActiveState",
+            "SubState",
+            "FragmentPath",
+            "UnitFileState",
+            "InactiveEnterTimestamp",
+            "ActiveEnterTimestamp",
+        )
         wanted = list(keys) if keys else list(default)
         props = self._props_iface_for_unit(unit)
         try:
@@ -235,7 +258,9 @@ class SystemdClient:
         except DBusException as e:
             raise _map_dbus_error(e, f"Get({unit})")
 
-    def get_service_properties(self, unit: str, keys: Optional[Iterable[str]] = None) -> Dict[str, Any]:
+    def get_service_properties(
+        self, unit: str, keys: Optional[Iterable[str]] = None
+    ) -> Dict[str, Any]:
         path = self._get_unit_path(unit)
         obj = self._bus.get_object(SERVICE, path)
         props = Interface(obj, IFACE_PROPS)
@@ -283,13 +308,23 @@ class SystemdClient:
 
     def reset_failed(self, unit: Optional[str] = None) -> None:
         try:
-            self._manager.ResetFailed() if unit is None else self._manager.ResetFailedUnit(unit)
+            (
+                self._manager.ResetFailed()
+                if unit is None
+                else self._manager.ResetFailedUnit(unit)
+            )
         except DBusException as e:
             raise _map_dbus_error(e, f"ResetFailed({unit or ''})")
 
     # NEU: Polling-Variante ohne GLib
-    def wait_job_poll(self, job_path: str, *, timeout_sec: Optional[float] = None,
-                      raise_on_fail: bool = True, poll_interval: float = 0.1) -> str:
+    def wait_job_poll(
+        self,
+        job_path: str,
+        *,
+        timeout_sec: Optional[float] = None,
+        raise_on_fail: bool = True,
+        poll_interval: float = 0.1,
+    ) -> str:
         """
         Wartet per Polling auf Abschluss eines systemd-Jobs.
         Rückgabe: 'done' oder 'failed' oder 'timeout-wait'.
@@ -300,7 +335,9 @@ class SystemdClient:
         props = Interface(job_obj, IFACE_PROPS)
         try:
             job_type = str(props.Get("org.freedesktop.systemd1.Job", "JobType"))
-            unit_name, _unit_path = props.Get("org.freedesktop.systemd1.Job", "Unit")  # (s,o)
+            unit_name, _unit_path = props.Get(
+                "org.freedesktop.systemd1.Job", "Unit"
+            )  # (s,o)
             unit_name = str(unit_name)
         except DBusException as e:
             raise _map_dbus_error(e, f"JobProps({job_path})")
@@ -314,10 +351,15 @@ class SystemdClient:
                 return "timeout-wait"
             try:
                 # Solange Property 'State' abrufbar ist, existiert der Job noch
-                _ = props.Get("org.freedesktop.systemd1.Job", "State")  # 'waiting'|'running'
+                _ = props.Get(
+                    "org.freedesktop.systemd1.Job", "State"
+                )  # 'waiting'|'running'
             except DBusException as e:
                 name = getattr(e, "get_dbus_name", lambda: "")() or ""
-                if name in ("org.freedesktop.DBus.Error.UnknownObject", "org.freedesktop.systemd1.NoSuchJob"):
+                if name in (
+                    "org.freedesktop.DBus.Error.UnknownObject",
+                    "org.freedesktop.systemd1.NoSuchJob",
+                ):
                     break  # Job entfernt -> abgeschlossen
                 raise _map_dbus_error(e, f"JobPoll({job_path})")
             time.sleep(poll_interval)
@@ -336,7 +378,9 @@ class SystemdClient:
                 ok = True
             else:
                 # oneshot / reload: prüfe Service-Resultat soweit möglich
-                sp = self.get_service_properties(unit_name, keys=("Type", "ExecMainStatus"))
+                sp = self.get_service_properties(
+                    unit_name, keys=("Type", "ExecMainStatus")
+                )
                 if str(sp.get("Type", "")) == "oneshot":
                     ok = int(sp.get("ExecMainStatus", 0)) == 0
                 elif st != "failed":
@@ -353,55 +397,105 @@ class SystemdClient:
     # --------- Lifecycle (blocking auf Job-Resultat) ---------
 
     # bestehende *wait()-Methoden auf Dispatch umstellen
-    def start_wait(self, unit: str, mode: str = "replace", *, timeout_sec: Optional[float] = None,
-                   raise_on_fail: bool = True) -> str:
+    def start_wait(
+        self,
+        unit: str,
+        mode: str = "replace",
+        *,
+        timeout_sec: Optional[float] = None,
+        raise_on_fail: bool = True,
+    ) -> str:
         job = self.start(unit, mode)
-        return self._wait_job_dispatch(job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail)
+        return self._wait_job_dispatch(
+            job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
+        )
 
-    def stop_wait(self, unit: str, mode: str = "replace", *, timeout_sec: Optional[float] = None,
-                  raise_on_fail: bool = True) -> str:
+    def stop_wait(
+        self,
+        unit: str,
+        mode: str = "replace",
+        *,
+        timeout_sec: Optional[float] = None,
+        raise_on_fail: bool = True,
+    ) -> str:
         job = self.stop(unit, mode)
-        return self._wait_job_dispatch(job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail)
+        return self._wait_job_dispatch(
+            job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
+        )
 
-    def restart_wait(self, unit: str, mode: str = "replace", *, timeout_sec: Optional[float] = None,
-                     raise_on_fail: bool = True) -> str:
+    def restart_wait(
+        self,
+        unit: str,
+        mode: str = "replace",
+        *,
+        timeout_sec: Optional[float] = None,
+        raise_on_fail: bool = True,
+    ) -> str:
         job = self.restart(unit, mode)
-        return self._wait_job_dispatch(job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail)
+        return self._wait_job_dispatch(
+            job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
+        )
 
-    def reload_wait(self, unit: str, mode: str = "replace", *, timeout_sec: Optional[float] = None,
-                    raise_on_fail: bool = True) -> str:
+    def reload_wait(
+        self,
+        unit: str,
+        mode: str = "replace",
+        *,
+        timeout_sec: Optional[float] = None,
+        raise_on_fail: bool = True,
+    ) -> str:
         job = self.reload(unit, mode)
-        return self._wait_job_dispatch(job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail)
+        return self._wait_job_dispatch(
+            job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
+        )
 
-    def reload_or_restart_wait(self, unit: str, mode: str = "replace", *, timeout_sec: Optional[float] = None,
-                               raise_on_fail: bool = True) -> str:
+    def reload_or_restart_wait(
+        self,
+        unit: str,
+        mode: str = "replace",
+        *,
+        timeout_sec: Optional[float] = None,
+        raise_on_fail: bool = True,
+    ) -> str:
         job = self.reload_or_restart(unit, mode)
-        return self._wait_job_dispatch(job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail)
+        return self._wait_job_dispatch(
+            job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
+        )
 
     # --------- Unit files / Listings ---------
 
-    def enable(self, names: Iterable[str], *, runtime: bool = False, force: bool = True) -> Tuple[bool, List[InstallChange]]:
+    def enable(
+        self, names: Iterable[str], *, runtime: bool = False, force: bool = True
+    ) -> Tuple[bool, List[InstallChange]]:
         try:
-            carries, changes = self._manager.EnableUnitFiles(list(names), runtime, force)
+            carries, changes = self._manager.EnableUnitFiles(
+                list(names), runtime, force
+            )
             return bool(carries), [InstallChange(*map(str, c)) for c in changes]
         except DBusException as e:
             raise _map_dbus_error(e, f"EnableUnitFiles({','.join(names)})")
 
-    def disable(self, names: Iterable[str], *, runtime: bool = False) -> List[InstallChange]:
+    def disable(
+        self, names: Iterable[str], *, runtime: bool = False
+    ) -> List[InstallChange]:
         try:
             changes = self._manager.DisableUnitFiles(list(names), runtime)
             return [InstallChange(*map(str, c)) for c in changes]
         except DBusException as e:
             raise _map_dbus_error(e, f"DisableUnitFiles({','.join(names)})")
 
-    def mask(self, names: Iterable[str], *, runtime: bool = False, force: bool = True) -> List[InstallChange]:
+    def mask(
+        self, names: Iterable[str], *, runtime: bool = False, force: bool = True
+    ) -> List[InstallChange]:
         try:
             changes = self._manager.MaskUnitFiles(list(names), runtime, force)
             return [InstallChange(*map(str, c)) for c in changes]
         except DBusException as e:
             raise _map_dbus_error(e, f"MaskUnitFiles({','.join(names)})")
 
-    def unmask(self, names: Iterable[str], *, runtime: bool = False) -> List[InstallChange]:
+    def unmask(
+        self, names: Iterable[str], *, runtime: bool = False
+    ) -> List[InstallChange]:
         try:
             changes = self._manager.UnmaskUnitFiles(list(names), runtime)
             return [InstallChange(*map(str, c)) for c in changes]
@@ -421,8 +515,20 @@ class SystemdClient:
             raise _map_dbus_error(e, "ListUnits")
         out: List[Unit] = []
         for r in rows:
-            out.append(Unit(str(r[0]), str(r[1]), str(r[2]), str(r[3]), str(r[4]),
-                            str(r[5]), str(r[6]), int(r[7]), str(r[8]), str(r[9])))
+            out.append(
+                Unit(
+                    str(r[0]),
+                    str(r[1]),
+                    str(r[2]),
+                    str(r[3]),
+                    str(r[4]),
+                    str(r[5]),
+                    str(r[6]),
+                    int(r[7]),
+                    str(r[8]),
+                    str(r[9]),
+                )
+            )
         return out
 
     def list_unit_files(self) -> List[UnitFile]:
@@ -458,7 +564,10 @@ class SystemdClient:
             raise _map_dbus_error(e, "Unsubscribe")
 
     def on_unit_properties_changed(
-        self, unit: str, callback: Callable[[Dict[str, Any]], None], *,
+        self,
+        unit: str,
+        callback: Callable[[Dict[str, Any]], None],
+        *,
         only: Iterable[str] = ("ActiveState", "SubState"),
     ) -> Callable[[], None]:
         if not self._signals_enabled:
@@ -466,14 +575,20 @@ class SystemdClient:
         path = self._get_unit_path(unit)
         wanted = set(only or ())
 
-        def _handler(interface: str, changed: Dict[str, Any], invalidated: List[str]) -> None:
+        def _handler(
+            interface: str, changed: Dict[str, Any], invalidated: List[str]
+        ) -> None:
             if interface != IFACE_UNIT:
                 return
-            payload = {k: _py(v) for k, v in changed.items() if not wanted or k in wanted}
+            payload = {
+                k: _py(v) for k, v in changed.items() if not wanted or k in wanted
+            }
             if payload:
                 callback(payload)
 
-        kwargs = dict(signal_name="PropertiesChanged", dbus_interface=IFACE_PROPS, path=path)
+        kwargs = dict(
+            signal_name="PropertiesChanged", dbus_interface=IFACE_PROPS, path=path
+        )
         self._bus.add_signal_receiver(_handler, **kwargs)
         self._signal_handlers.append((_handler, kwargs))
 
@@ -482,6 +597,7 @@ class SystemdClient:
                 self._bus.remove_signal_receiver(_handler, **kwargs)
             except Exception:
                 pass
+
         return _off
 
     # --------- Regex-Matching über mehrere Units ---------
@@ -511,8 +627,11 @@ class SystemdClient:
         type_set = set(types)
 
         # Live-Units
-        live = {u.name: u for u in self.list_units()
-                if _kind_from_name(u.name) in type_set and any(r.search(u.name) for r in rx)}
+        live = {
+            u.name: u
+            for u in self.list_units()
+            if _kind_from_name(u.name) in type_set and any(r.search(u.name) for r in rx)
+        }
 
         # UnitFiles (Installzustand), optional
         file_rows = self.list_unit_files() if include_inactive_files else []
@@ -530,35 +649,39 @@ class SystemdClient:
         out: List[UnitStatus] = []
         for name in names:
             file_state = (file_state_by_name.get(name) or "").lower() or None
-            is_masked = (file_state in MASKED_STATES)
+            is_masked = file_state in MASKED_STATES
             is_enabled = (file_state in ENABLED_STATES) and not is_masked
 
             if name in live:
                 u = live[name]
-                out.append(UnitStatus(
-                    name=name,
-                    kind=_kind_from_name(name),
-                    description=u.description,
-                    active_state=u.active_state,
-                    sub_state=u.sub_state,
-                    unit_file_state=file_state,
-                    load_state=u.load_state,
-                    is_enabled=is_enabled,
-                    is_masked=is_masked,
-                ))
+                out.append(
+                    UnitStatus(
+                        name=name,
+                        kind=_kind_from_name(name),
+                        description=u.description,
+                        active_state=u.active_state,
+                        sub_state=u.sub_state,
+                        unit_file_state=file_state,
+                        load_state=u.load_state,
+                        is_enabled=is_enabled,
+                        is_masked=is_masked,
+                    )
+                )
             else:
                 # Datei vorhanden, aber nicht geladen
-                out.append(UnitStatus(
-                    name=name,
-                    kind=_kind_from_name(name),
-                    description="",
-                    active_state="inactive",
-                    sub_state="dead",
-                    unit_file_state=file_state,
-                    load_state=None,
-                    is_enabled=is_enabled,
-                    is_masked=is_masked,
-                ))
+                out.append(
+                    UnitStatus(
+                        name=name,
+                        kind=_kind_from_name(name),
+                        description="",
+                        active_state="inactive",
+                        sub_state="dead",
+                        unit_file_state=file_state,
+                        load_state=None,
+                        is_enabled=is_enabled,
+                        is_masked=is_masked,
+                    )
+                )
         return out
 
     # --------- Low-level ---------
@@ -591,11 +714,17 @@ class SystemdClient:
             raise _map_dbus_error(e, f"Get({unit},{prop})")
 
     # HELFER: automatische Wahl je nach GLib-Verfügbarkeit
-    def _wait_job_dispatch(self, job_path: str, *, timeout_sec: Optional[float], raise_on_fail: bool) -> str:
+    def _wait_job_dispatch(
+        self, job_path: str, *, timeout_sec: Optional[float], raise_on_fail: bool
+    ) -> str:
         if self._glib_enabled and GLib is not None:
-            return self.wait_job(job_path, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail)
+            return self.wait_job(
+                job_path, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
+            )
 
-        return self.wait_job_poll(job_path, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail)
+        return self.wait_job_poll(
+            job_path, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
+        )
 
 
 """
