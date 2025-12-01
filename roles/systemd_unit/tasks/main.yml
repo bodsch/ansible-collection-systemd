@@ -19,7 +19,7 @@
         service:
           TTYVTDisallocate: false
   when:
-    - ansible_service_mgr == 'systemd'
+    - ansible_facts.service_mgr == 'systemd'
 
 - name: create systemd unit
   bodsch.systemd.unit_file:
@@ -35,7 +35,7 @@
         ExecStart: /usr/bin/php -f /var/www/nextcloud/server/cron.php
         KillMode: process
   when:
-    - ansible_service_mgr == 'systemd'
+    - ansible_facts.service_mgr == 'systemd'
 
 - name: create systemd timer
   bodsch.systemd.unit_file:
@@ -52,7 +52,7 @@
       install:
         WantedBy: timers.target
   when:
-    - ansible_service_mgr == 'systemd'
+    - ansible_facts.service_mgr == 'systemd'
 
 - name: create systemd unit files
   bodsch.systemd.unit_file:
