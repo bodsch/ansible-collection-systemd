@@ -1,4 +1,3 @@
----
 dependency:
   name: galaxy
 
@@ -19,7 +18,7 @@ platforms:
         type: bind
         read_only: false
     volumes:
-        - /var/lib/containerd
+      - /var/lib/containerd
     capabilities:
       - SYS_ADMIN
     tmpfs:
@@ -28,29 +27,25 @@ platforms:
 
 provisioner:
   name: ansible
-  ansible_facts.args:
+  ansible_args:
     - --diff
     - -v
   config_options:
     defaults:
       deprecation_warnings: true
-      stdout_callback: yaml
+      callback_result_format: yaml
       callbacks_enabled: profile_tasks
       gathering: smart
-      fact_caching: jsonfile
-      fact_caching_timeout: 8640
-      fact_caching_connection: ansible_facts
-
+      fact_caching_timeout: 320
 scenario:
   test_sequence:
     - destroy
     - dependency
-    - syntax
     - create
     - prepare
     - converge
+    - idempotence
     - verify
     - destroy
-
 verifier:
   name: testinfra
