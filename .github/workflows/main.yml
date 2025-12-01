@@ -46,10 +46,10 @@ jobs:
         image:
           - archlinux:latest
         ansible:
-          - '8.5'
+          - '9.5'
         python:
-          - '3.11'
-          - '3.12'
+          - "3.12"
+          - "3.13"
         scenario:
           - default
 
