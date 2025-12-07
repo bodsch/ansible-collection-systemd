@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-# file: systemd_client_dbus.py
-"""
-SystemdClient (python-dbus) mit Regex-Matching für Services/Sockets/Timer.
 
-Install:
-  sudo apt-get install python3-dbus python3-gi
+# file: systemd.py
+"""
+High-level systemd D-Bus client with regex matching for services, sockets and
+timers.
+
+The module is primarily intended to be imported from Ansible modules or other
+Python code, but it also exposes a small CLI for ad-hoc use.
+
+Dependencies (Debian/Ubuntu):
+    sudo apt-get install python3-dbus python3-gi
 """
 
 from __future__ import annotations
@@ -40,19 +45,19 @@ MASKED_STATES = {"masked", "masked-runtime"}
 
 
 class SystemdError(Exception):
-    """Base exception for all SystemdClient-related errors."""
+    """Base exception type for all SystemdClient-related errors."""
 
 
 class UnitNotFoundError(SystemdError):
-    """Raised when a requested unit does not exist."""
+    """Raised when a requested unit or unit file is not known to systemd."""
 
 
 class AccessDeniedError(SystemdError):
-    """Raised when access is denied (PolicyKit/root permissions)."""
+    """Raised when access is denied (e.g. PolicyKit / missing root privileges)."""
 
 
 class JobFailedError(SystemdError):
-    """Raised when a systemd job finishes with a failure state."""
+    """Raised when a systemd job finishes or is reported with a failure state."""
 
 
 class DBusIOError(SystemdError):
@@ -60,6 +65,16 @@ class DBusIOError(SystemdError):
 
 
 def _map_dbus_error(e: DBusException, ctx: str = "") -> SystemdError:
+    """
+    Map a raw DBusException to a more specific SystemdError subclass.
+
+    Args:
+        e: Original DBusException instance.
+        ctx: Optional context string to prefix the error message with.
+
+    Returns:
+        One of UnitNotFoundError, AccessDeniedError, JobFailedError or DBusIOError.
+    """
     name = getattr(e, "get_dbus_name", lambda: "")() or ""
     msg = f"{ctx}: {e}" if ctx else str(e)
     if name in (
@@ -67,10 +82,13 @@ def _map_dbus_error(e: DBusException, ctx: str = "") -> SystemdError:
         "org.freedesktop.DBus.Error.UnknownObject",
     ):
         return UnitNotFoundError(msg)
+
     if name == "org.freedesktop.DBus.Error.AccessDenied":
         return AccessDeniedError(msg)
+
     if name == "org.freedesktop.systemd1.JobFailed":
         return JobFailedError(msg)
+
     return DBusIOError(msg)
 
 
@@ -78,30 +96,49 @@ def _map_dbus_error(e: DBusException, ctx: str = "") -> SystemdError:
 
 
 def _py(v: Any) -> Any:
+    """
+    Convert dbus.* types into plain Python types (recursively).
+
+    This makes it easier to work with values returned from D-Bus calls by
+    normalising strings, integers, arrays and dictionaries.
+    """
     if isinstance(v, (dbus.String, dbus.ObjectPath)):
         return str(v)
+
     if isinstance(
         v, (dbus.Int16, dbus.Int32, dbus.Int64, dbus.UInt16, dbus.UInt32, dbus.UInt64)
     ):
         return int(v)
+
     if isinstance(v, dbus.Boolean):
         return bool(v)
+
     if isinstance(v, dbus.Double):
         return float(v)
+
     if isinstance(v, (dbus.ByteArray, bytes, bytearray)):
         return bytes(v)
+
     if isinstance(v, (list, tuple, dbus.Array)):
         return type(v)(_py(x) for x in v)
+
     if isinstance(v, (dict, dbus.Dictionary)):
         return {_py(k): _py(val) for k, val in v.items()}
+
     return v
 
 
 def _basename_or_name(s: str) -> str:
+    """
+    Return the basename of a path or the input string if it contains no slash.
+    """
     return os.path.basename(s) if "/" in s else s
 
 
 def _kind_from_name(name: str) -> str:
+    """
+    Extract the unit type (suffix) from a unit name, e.g. 'ssh.service' -> 'service'.
+    """
     return name.split(".")[-1] if "." in name else ""
 
 
@@ -110,6 +147,8 @@ def _kind_from_name(name: str) -> str:
 
 @dataclass(frozen=True)
 class Unit:
+    """Single row returned from Manager.ListUnits()."""
+
     name: str
     description: str
     load_state: str
@@ -124,12 +163,16 @@ class Unit:
 
 @dataclass(frozen=True)
 class UnitFile:
+    """Single row returned from Manager.ListUnitFiles()."""
+
     path: str
     state: str  # enabled, disabled, masked, ...
 
 
 @dataclass(frozen=True)
 class InstallChange:
+    """Install-time change as reported by (Un)Mask/(Dis|En)ableUnitFiles()."""
+
     type: str
     file: str
     destination: str
@@ -137,7 +180,12 @@ class InstallChange:
 
 @dataclass(frozen=True)
 class UnitStatus:
-    """Combined view of runtime unit status and install-time unit file state."""
+    """
+    Combined view of runtime unit status and install-time unit file state.
+
+    This structure merges data from ListUnits() and ListUnitFiles() and is used
+    by match_units() to represent both active and inactive units.
+    """
 
     name: str
     kind: str  # service|socket|timer|...
@@ -155,19 +203,26 @@ class UnitStatus:
 
 class SystemdClient:
     """
+    High-level wrapper around the org.freedesktop.systemd1 D-Bus API.
+
+    The client exposes convenience methods for common lifecycle actions
+    (start/stop/restart), querying unit state and matching units via regular
+    expressions. It can be used against the system or per-user systemd manager.
     """
 
     def __init__(self, *, user_manager: bool = False, use_glib: bool = False) -> None:
         """
-        Create a new SystemdClient instance.
+        Create a new SystemdClient instance and connect to the systemd manager.
 
         Args:
-            user_manager: If True, connect to the per-user systemd manager
-                (session bus). If False, connect to the system-wide manager
-                (system bus).
-            use_glib: If True, initialize a GLib main loop and enable
-                signal-based waiting for jobs. If False, a pure polling-based
-                approach is used instead.
+            user_manager:
+                If True, connect to the per-user systemd manager on the session
+                bus. If False (default), connect to the system-wide manager on
+                the system bus.
+            use_glib:
+                If True, initialise a GLib main loop and prefer a signal-based
+                waiting strategy for jobs (wait_job). If False, a pure
+                polling-based approach (wait_job_poll) is used instead.
         """
         self._glib_enabled = bool(use_glib)
 
@@ -186,21 +241,30 @@ class SystemdClient:
         self._unit_props_cache: Dict[str, Interface] = {}
 
     def __enter__(self) -> "SystemdClient":
+        """Allow use as a context manager that auto-closes the D-Bus connection."""
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
+        """Close the underlying D-Bus connection when leaving the context."""
         self.close()
 
     def close(self) -> None:
+        """
+        Close the underlying D-Bus connection and unregister signal handlers.
+
+        This is safe to call multiple times.
+        """
         try:
             self._bus.close()
         except Exception:
             pass
+
         for func, kwargs in self._signal_handlers:
             try:
                 self._bus.remove_signal_receiver(func, **kwargs)
             except Exception:
                 pass
+
         self._signal_handlers.clear()
         self._unit_props_cache.clear()
 
@@ -232,6 +296,9 @@ class SystemdClient:
 
         The method first tries GetUnit() and falls back to LoadUnit() if
         the unit is not currently loaded.
+
+        Raises:
+            SystemdError: If the unit cannot be loaded.
         """
         try:
             return str(self._manager.GetUnit(unit))
@@ -242,9 +309,25 @@ class SystemdClient:
                 raise _map_dbus_error(e, f"LoadUnit({unit})")
 
     def is_active(self, unit: str) -> bool:
+        """
+        Return True if the unit's ActiveState is 'active'.
+
+        Unknown units are treated as inactive and will raise UnitNotFoundError
+        unless active_state() is called with a default.
+        """
         return self.active_state(unit, default="inactive") == "active"
 
     def active_state(self, unit: str, *, default: Optional[str] = None) -> str:
+        """
+        Return the unit's ActiveState.
+
+        Args:
+            unit: Unit name, e.g. 'ssh.service'.
+            default: Optional value returned when the unit does not exist.
+
+        Raises:
+            UnitNotFoundError: If the unit does not exist and no default is set.
+        """
         try:
             return self._get_unit_prop_str(unit, "ActiveState")
         except UnitNotFoundError:
@@ -253,6 +336,16 @@ class SystemdClient:
             raise
 
     def sub_state(self, unit: str, *, default: Optional[str] = None) -> str:
+        """
+        Return the unit's SubState.
+
+        Args:
+            unit: Unit name, e.g. 'ssh.service'.
+            default: Optional value returned when the unit does not exist.
+
+        Raises:
+            UnitNotFoundError: If the unit does not exist and no default is set.
+        """
         try:
             return self._get_unit_prop_str(unit, "SubState")
         except UnitNotFoundError:
@@ -263,6 +356,17 @@ class SystemdClient:
     def get_unit_properties(
         self, unit: str, keys: Optional[Iterable[str]] = None
     ) -> Dict[str, Any]:
+        """
+        Fetch selected properties of a unit object.
+
+        Args:
+            unit: Unit name, e.g. 'ssh.service'.
+            keys: Iterable of property names to retrieve. If omitted, a useful
+                default set of properties is returned.
+
+        Returns:
+            Mapping from property name to converted Python value.
+        """
         default = (
             "Id",
             "Description",
@@ -284,6 +388,18 @@ class SystemdClient:
     def get_service_properties(
         self, unit: str, keys: Optional[Iterable[str]] = None
     ) -> Dict[str, Any]:
+        """
+        Fetch selected properties from the Service interface for a unit.
+
+        Args:
+            unit: Unit name, e.g. 'ssh.service'.
+            keys: Iterable of property names on org.freedesktop.systemd1.Service.
+                If omitted, a small default subset is requested.
+
+        Returns:
+            Mapping from property name to converted Python value. Properties that
+            cannot be retrieved are silently omitted from the result.
+        """
         path = self._get_unit_path(unit)
         obj = self._bus.get_object(SERVICE, path)
         props = Interface(obj, IFACE_PROPS)
@@ -300,36 +416,73 @@ class SystemdClient:
     # --------- Lifecycle ---------
 
     def start(self, unit: str, mode: str = "replace") -> str:
+        """
+        Start a unit using Manager.StartUnit().
+
+        Returns:
+            The D-Bus job object path.
+        """
         try:
             return str(self._manager.StartUnit(unit, mode))
         except DBusException as e:
             raise _map_dbus_error(e, f"StartUnit({unit})")
 
     def stop(self, unit: str, mode: str = "replace") -> str:
+        """
+        Stop a unit using Manager.StopUnit().
+
+        Returns:
+            The D-Bus job object path.
+        """
         try:
             return str(self._manager.StopUnit(unit, mode))
         except DBusException as e:
             raise _map_dbus_error(e, f"StopUnit({unit})")
 
     def restart(self, unit: str, mode: str = "replace") -> str:
+        """
+        Restart a unit using Manager.RestartUnit().
+
+        Returns:
+            The D-Bus job object path.
+        """
         try:
             return str(self._manager.RestartUnit(unit, mode))
         except DBusException as e:
             raise _map_dbus_error(e, f"RestartUnit({unit})")
 
     def reload(self, unit: str, mode: str = "replace") -> str:
+        """
+        Reload a unit using Manager.ReloadUnit().
+
+        Returns:
+            The D-Bus job object path.
+        """
         try:
             return str(self._manager.ReloadUnit(unit, mode))
         except DBusException as e:
             raise _map_dbus_error(e, f"ReloadUnit({unit})")
 
     def reload_or_restart(self, unit: str, mode: str = "replace") -> str:
+        """
+        Reload or restart a unit using Manager.ReloadOrRestartUnit().
+
+        Returns:
+            The D-Bus job object path.
+        """
         try:
             return str(self._manager.ReloadOrRestartUnit(unit, mode))
         except DBusException as e:
             raise _map_dbus_error(e, f"ReloadOrRestartUnit({unit})")
 
     def reset_failed(self, unit: Optional[str] = None) -> None:
+        """
+        Clear failed state for one unit or for all units.
+
+        Args:
+            unit: Optional unit name. If None, ResetFailed() is called and all
+                failed states are cleared.
+        """
         try:
             (
                 self._manager.ResetFailed()
@@ -339,7 +492,7 @@ class SystemdClient:
         except DBusException as e:
             raise _map_dbus_error(e, f"ResetFailed({unit or ''})")
 
-    # NEU: Polling-Variante ohne GLib
+    # Polling-based variant used when GLib is not available or disabled.
     def wait_job_poll(
         self,
         job_path: str,
@@ -354,7 +507,8 @@ class SystemdClient:
         Args:
             job_path: D-Bus object path of the job.
             timeout_sec: Optional timeout in seconds. If None, wait indefinitely.
-            raise_on_fail: If True, raise JobFailedError on failed or timed-out jobs.
+            raise_on_fail: If True, raise JobFailedError on failed or timed-out
+                jobs. If False, return "failed" or "timeout-wait" instead.
             poll_interval: Time in seconds between poll iterations.
 
         Returns:
@@ -362,9 +516,9 @@ class SystemdClient:
 
         Note:
             Without GLib signals, result details like "canceled", "dependency",
-            "timeout" or "skipped" cannot be distinguished precisely.
+            "timeout" or "skipped" cannot be distinguished precisely. The method
+            relies on unit state and, for oneshot services, ExecMainStatus.
         """
-        # Job-Properties einmalig lesen (const)
         job_obj = self._bus.get_object(SERVICE, job_path)
         props = Interface(job_obj, IFACE_PROPS)
         try:
@@ -384,7 +538,7 @@ class SystemdClient:
                     raise JobFailedError(f"job {job_path} result=timeout-wait")
                 return "timeout-wait"
             try:
-                # Solange Property 'State' abrufbar ist, existiert der Job noch
+                # As long as property 'State' can be read, the job still exists.
                 _ = props.Get(
                     "org.freedesktop.systemd1.Job", "State"
                 )  # 'waiting'|'running'
@@ -394,11 +548,11 @@ class SystemdClient:
                     "org.freedesktop.DBus.Error.UnknownObject",
                     "org.freedesktop.systemd1.NoSuchJob",
                 ):
-                    break  # Job entfernt -> abgeschlossen
+                    break  # Job removed -> finished
                 raise _map_dbus_error(e, f"JobPoll({job_path})")
             time.sleep(poll_interval)
 
-        # Ergebnis heuristisch über Unit-Status bestimmen
+        # Heuristic evaluation based on unit state.
         try:
             st = self.active_state(unit_name, default="inactive")
         except SystemdError:
@@ -406,19 +560,20 @@ class SystemdClient:
 
         ok = False
         if job_type == "stop":
-            ok = st in ("inactive", "failed")  # nach Stop sollte nicht 'active' sein
+            # After a stop job the unit should definitely not be 'active'.
+            ok = st in ("inactive", "failed")
         else:
             if st == "active":
                 ok = True
             else:
-                # oneshot / reload: prüfe Service-Resultat soweit möglich
+                # oneshot / reload: inspect ExecMainStatus when available.
                 sp = self.get_service_properties(
                     unit_name, keys=("Type", "ExecMainStatus")
                 )
                 if str(sp.get("Type", "")) == "oneshot":
                     ok = int(sp.get("ExecMainStatus", 0)) == 0
                 elif st != "failed":
-                    # Fallback: kein 'failed' => als Erfolg werten
+                    # Fallback: anything not explicitly failed counts as success.
                     ok = True
 
         if not ok:
@@ -428,9 +583,99 @@ class SystemdClient:
 
         return "done"
 
+    def wait_job(
+        self,
+        job_path: str,
+        *,
+        timeout_sec: Optional[float] = None,
+        raise_on_fail: bool = True,
+    ) -> str:
+        """
+        Wait for completion of a systemd job using GLib JobRemoved signals.
+
+        This method is used when use_glib=True and GLib is available. It listens
+        for the Manager.JobRemoved signal and derives the job result from the
+        'result' argument.
+
+        Args:
+            job_path: D-Bus object path of the job.
+            timeout_sec: Optional timeout in seconds. If None, wait indefinitely.
+            raise_on_fail: If True, raise JobFailedError for all results other
+                than "done" or a local timeout.
+
+        Returns:
+            "done" on success, "failed" on error or "timeout-wait" if the local
+            wait timeout expires.
+        """
+        if GLib is None:
+            # Defensive fallback; normally guarded by _wait_job_dispatch.
+            return self.wait_job_poll(
+                job_path, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
+            )
+
+        if not self._signals_enabled:
+            # If subscription is not possible, fall back to polling.
+            try:
+                self.subscribe()
+            except SystemdError:
+                return self.wait_job_poll(
+                    job_path, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
+                )
+
+        result_holder: Dict[str, Optional[str]] = {"result": None}
+        loop = GLib.MainLoop()
+
+        def _on_job_removed(job_id, job_path_signal, unit, result) -> None:
+            if str(job_path_signal) != job_path:
+                return
+            result_holder["result"] = str(result)
+            loop.quit()
+
+        self._bus.add_signal_receiver(
+            _on_job_removed,
+            signal_name="JobRemoved",
+            dbus_interface=IFACE_MANAGER,
+            path=MANAGER_PATH,
+        )
+
+        def _on_timeout() -> bool:
+            if result_holder["result"] is not None:
+                return False
+            result_holder["result"] = "timeout-wait"
+            loop.quit()
+            return False
+
+        if timeout_sec is not None:
+            GLib.timeout_add(int(timeout_sec * 1000), _on_timeout)
+
+        try:
+            loop.run()
+        finally:
+            try:
+                self._bus.remove_signal_receiver(
+                    _on_job_removed,
+                    signal_name="JobRemoved",
+                    dbus_interface=IFACE_MANAGER,
+                    path=MANAGER_PATH,
+                )
+            except Exception:
+                pass
+
+        result = result_holder["result"] or "failed"
+        if result == "timeout-wait":
+            if raise_on_fail:
+                raise JobFailedError(f"job {job_path} result=timeout-wait")
+            return "timeout-wait"
+
+        if result != "done":
+            if raise_on_fail:
+                raise JobFailedError(f"job {job_path} result={result}")
+            return "failed"
+
+        return "done"
+
     # --------- Lifecycle (blocking auf Job-Resultat) ---------
 
-    # bestehende *wait()-Methoden auf Dispatch umstellen
     def start_wait(
         self,
         unit: str,
@@ -439,6 +684,12 @@ class SystemdClient:
         timeout_sec: Optional[float] = None,
         raise_on_fail: bool = True,
     ) -> str:
+        """
+        Start a unit and wait for the corresponding job to finish.
+
+        See wait_job_poll() / wait_job() for the meaning of timeout_sec and
+        raise_on_fail.
+        """
         job = self.start(unit, mode)
         return self._wait_job_dispatch(
             job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
@@ -452,6 +703,9 @@ class SystemdClient:
         timeout_sec: Optional[float] = None,
         raise_on_fail: bool = True,
     ) -> str:
+        """
+        Stop a unit and wait for the corresponding job to finish.
+        """
         job = self.stop(unit, mode)
         return self._wait_job_dispatch(
             job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
@@ -465,6 +719,9 @@ class SystemdClient:
         timeout_sec: Optional[float] = None,
         raise_on_fail: bool = True,
     ) -> str:
+        """
+        Restart a unit and wait for the corresponding job to finish.
+        """
         job = self.restart(unit, mode)
         return self._wait_job_dispatch(
             job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
@@ -478,6 +735,9 @@ class SystemdClient:
         timeout_sec: Optional[float] = None,
         raise_on_fail: bool = True,
     ) -> str:
+        """
+        Reload a unit and wait for the corresponding job to finish.
+        """
         job = self.reload(unit, mode)
         return self._wait_job_dispatch(
             job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
@@ -491,6 +751,9 @@ class SystemdClient:
         timeout_sec: Optional[float] = None,
         raise_on_fail: bool = True,
     ) -> str:
+        """
+        Reload or restart a unit and wait for the corresponding job to finish.
+        """
         job = self.reload_or_restart(unit, mode)
         return self._wait_job_dispatch(
             job, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
@@ -501,6 +764,19 @@ class SystemdClient:
     def enable(
         self, names: Iterable[str], *, runtime: bool = False, force: bool = True
     ) -> Tuple[bool, List[InstallChange]]:
+        """
+        Enable unit files via Manager.EnableUnitFiles().
+
+        Args:
+            names: Iterable of unit file names.
+            runtime: If True, only enable for the current runtime.
+            force: If True, overwrite existing symlinks.
+
+        Returns:
+            Tuple (carries_install_info, changes) where carries_install_info
+            indicates whether enablement carries install information and changes
+            is the list of InstallChange objects.
+        """
         try:
             carries, changes = self._manager.EnableUnitFiles(
                 list(names), runtime, force
@@ -512,6 +788,9 @@ class SystemdClient:
     def disable(
         self, names: Iterable[str], *, runtime: bool = False
     ) -> List[InstallChange]:
+        """
+        Disable unit files via Manager.DisableUnitFiles().
+        """
         try:
             changes = self._manager.DisableUnitFiles(list(names), runtime)
             return [InstallChange(*map(str, c)) for c in changes]
@@ -521,6 +800,9 @@ class SystemdClient:
     def mask(
         self, names: Iterable[str], *, runtime: bool = False, force: bool = True
     ) -> List[InstallChange]:
+        """
+        Mask unit files via Manager.MaskUnitFiles().
+        """
         try:
             changes = self._manager.MaskUnitFiles(list(names), runtime, force)
             return [InstallChange(*map(str, c)) for c in changes]
@@ -530,6 +812,9 @@ class SystemdClient:
     def unmask(
         self, names: Iterable[str], *, runtime: bool = False
     ) -> List[InstallChange]:
+        """
+        Unmask unit files via Manager.UnmaskUnitFiles().
+        """
         try:
             changes = self._manager.UnmaskUnitFiles(list(names), runtime)
             return [InstallChange(*map(str, c)) for c in changes]
@@ -537,16 +822,28 @@ class SystemdClient:
             raise _map_dbus_error(e, f"UnmaskUnitFiles({','.join(names)})")
 
     def get_unit_file_state(self, file: str) -> str:
+        """
+        Return the unit file state for a given file name.
+
+        Examples: 'enabled', 'disabled', 'masked', ...
+        """
         try:
             return str(self._manager.GetUnitFileState(file))
         except DBusException as e:
             raise _map_dbus_error(e, f"GetUnitFileState({file})")
 
     def list_units(self) -> List[Unit]:
+        """
+        List all currently loaded units.
+
+        Returns:
+            List of Unit objects mirroring the fields returned by ListUnits().
+        """
         try:
             rows = self._manager.ListUnits()
         except DBusException as e:
             raise _map_dbus_error(e, "ListUnits")
+
         out: List[Unit] = []
         for r in rows:
             out.append(
@@ -580,6 +877,9 @@ class SystemdClient:
         return [UnitFile(path=str(r[0]), state=str(r[1])) for r in rows]
 
     def daemon_reload(self) -> None:
+        """
+        Trigger a systemd daemon reload (Manager.Reload()).
+        """
         try:
             self._manager.Reload()
         except DBusException as e:
@@ -588,6 +888,11 @@ class SystemdClient:
     # --------- Signals ---------
 
     def subscribe(self) -> None:
+        """
+        Subscribe to systemd manager events.
+
+        This is required for receiving property change and JobRemoved signals.
+        """
         try:
             self._manager.Subscribe()
             self._signals_enabled = True
@@ -595,6 +900,9 @@ class SystemdClient:
             raise _map_dbus_error(e, "Subscribe")
 
     def unsubscribe(self) -> None:
+        """
+        Unsubscribe from systemd manager events.
+        """
         try:
             self._manager.Unsubscribe()
             self._signals_enabled = False
@@ -608,6 +916,18 @@ class SystemdClient:
         *,
         only: Iterable[str] = ("ActiveState", "SubState"),
     ) -> Callable[[], None]:
+        """
+        Register a callback for unit property changes.
+
+        Args:
+            unit: Unit name, e.g. 'ssh.service'.
+            callback: Callable receiving a dict of changed properties (already
+                converted with _py()).
+            only: Optional iterable of property names to filter for.
+
+        Returns:
+            A callable that, when invoked, unregisters the signal handler.
+        """
         if not self._signals_enabled:
             self.subscribe()
         path = self._get_unit_path(unit)
@@ -638,7 +958,7 @@ class SystemdClient:
 
         return _off
 
-    # --------- Regex-Matching über mehrere Units ---------
+    # --------- Regex matching across units ---------
 
     def match_units(
         self,
@@ -684,7 +1004,7 @@ class SystemdClient:
                 candidates_from_files.add(name)
                 file_state_by_name[name] = f.state
 
-        # Union aus Live + Files
+        # Union of live units and matching unit files.
         names = sorted(set(live.keys()) | candidates_from_files)
 
         out: List[UnitStatus] = []
@@ -725,7 +1045,7 @@ class SystemdClient:
                 )
         return out
 
-    # --------- Low-level ---------
+    # --------- Low-level helpers ---------
 
     def _get_unit_path(self, unit: str) -> str:
         """
@@ -747,25 +1067,40 @@ class SystemdClient:
                 raise _map_dbus_error(e2, f"LoadUnit({unit})") from e1
 
     def _props_iface_for_unit(self, unit: str) -> Interface:
+        """
+        Return a cached Properties interface proxy for the given unit.
+        """
         path = self._get_unit_path(unit)
         if path in self._unit_props_cache:
             return self._unit_props_cache[path]
+
         obj = self._bus.get_object(SERVICE, path)
         props = Interface(obj, IFACE_PROPS)
         self._unit_props_cache[path] = props
+
         return props
 
     def _get_unit_prop_str(self, unit: str, prop: str) -> str:
+        """
+        Helper to read a single unit property as string.
+
+        Raises:
+            UnitNotFoundError: If the unit does not exist.
+        """
         props = self._props_iface_for_unit(unit)
         try:
             return str(props.Get(IFACE_UNIT, prop))
         except DBusException as e:
             raise _map_dbus_error(e, f"Get({unit},{prop})")
 
-    # HELFER: automatische Wahl je nach GLib-Verfügbarkeit
     def _wait_job_dispatch(
         self, job_path: str, *, timeout_sec: Optional[float], raise_on_fail: bool
     ) -> str:
+        """
+        Dispatch job waiting to either the GLib or the polling implementation.
+
+        This is used internally by the *_wait() lifecycle helpers.
+        """
         if self._glib_enabled and GLib is not None:
             return self.wait_job(
                 job_path, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
@@ -774,155 +1109,3 @@ class SystemdClient:
         return self.wait_job_poll(
             job_path, timeout_sec=timeout_sec, raise_on_fail=raise_on_fail
         )
-
-
-"""
-
-first = next(iter(data), None)  # None wenn leer
-
-# 2) direkte Dict-Comprehensions über Attribute:
-by_name = {u.name: u for u in data}
-states  = {u.name: (u.active_state, u.sub_state) for u in data}
-enabled = {u.name: u.unit_file_state == "enabled" for u in data}
-
-# 3) generischer Adapter für {k:v for k,v in ...}
-from operator import attrgetter
-from typing import Iterable, Hashable, Any
-
-def kv(data: Iterable, key: str = "name", value: str | tuple[str, ...] = "active_state") -> Iterable[tuple[Hashable, Any]]:
-    gk = attrgetter(key)
-    if isinstance(value, tuple):
-        gv = attrgetter(*value)                # -> tuple
-        return ((gk(u), gv(u)) for u in data)
-    else:
-        gv = attrgetter(value)                 # -> skalar
-        return ((gk(u), gv(u)) for u in data)
-
-# Nutzung:
-d1 = dict(kv(data, "name", "active_state"))                 # {name: active_state}
-d2 = dict(kv(data, "name", ("active_state", "sub_state")))  # {name: (active, sub)}
-d3 = dict(kv(data, "name", ("kind", "unit_file_state", "load_state")))
-
-
-# ---------- CLI ----------
-
-def _cli() -> int:
-    import argparse, sys
-    p = argparse.ArgumentParser(prog="systemd_client_dbus")
-    p.add_argument("--user", action="store_true")
-    sub = p.add_subparsers(dest="cmd", required=True)
-
-    sub.add_parser("list-units");
-    sub.add_parser("list-unit-files")
-
-    for name in ("is-active","active-state","sub-state"):
-        s = sub.add_parser(name);
-        s.add_argument("unit")
-
-    for cmd in ("start","stop","restart","reload","reload-or-restart"):
-        s = sub.add_parser(cmd);
-        s.add_argument("unit");
-        s.add_argument("--mode", default="replace")
-
-    s = sub.add_parser("enable");
-    s.add_argument("names", nargs="+");
-    s.add_argument("--runtime", action="store_true");
-    s.add_argument("--no-force", action="store_true")
-
-    s = sub.add_parser("disable");
-    s.add_argument("names", nargs="+");
-    s.add_argument("--runtime", action="store_true")
-
-    s = sub.add_parser("mask");
-    s.add_argument("names", nargs="+");
-    s.add_argument("--runtime", action="store_true");
-    s.add_argument("--no-force", action="store_true")
-
-    s = sub.add_parser("unmask"); s.add_argument("names", nargs="+");
-    s.add_argument("--runtime", action="store_true")
-
-    sub.add_parser("daemon-reload")
-    s = sub.add_parser("get-unit-file-state"); s.add_argument("file")
-
-    m = sub.add_parser("match")
-    m.add_argument("patterns", nargs="+", help="Regexe, z.B. 'nginx|ssh' 'cron'")
-    m.add_argument("--types", nargs="+", default=["service","socket","timer"])
-    m.add_argument("--no-files", action="store_true", help="nur laufende Units betrachten")
-    m.add_argument("--case-sensitive", action="store_true")
-
-    a = p.parse_args()
-    sd = SystemdClient(user_manager=a.user)
-    try:
-        if a.cmd == "list-units":
-            for u in sd.list_units(): print(f"{u.name:40} {u.active_state:10} {u.sub_state:12} {u.description}"); return 0
-        if a.cmd == "list-unit-files":
-            for f in sd.list_unit_files(): print(f"{f.state:10} {f.path}"); return 0
-        if a.cmd == "is-active":
-            ok = sd.is_active(a.unit); print("active" if ok else "inactive"); return 0 if ok else 3
-        if a.cmd == "active-state":
-            try: print(sd.active_state(a.unit)); return 0
-            except UnitNotFoundError:
-             print("unknown"); return 4
-        if a.cmd == "sub-state":
-            try: print(sd.sub_state(a.unit)); return 0
-            except UnitNotFoundError: print("unknown"); return 4
-        if a.cmd == "start":
-            print(sd.start(a.unit, a.mode)); return 0
-        if a.cmd == "stop":
-            print(sd.stop(a.unit, a.mode)); return 0
-        if a.cmd == "restart":
-            print(sd.restart(a.unit, a.mode)); return 0
-        if a.cmd == "reload":
-             print(sd.reload(a.unit, a.mode)); return 0
-        if a.cmd == "reload-or-restart":
-             print(sd.reload_or_restart(a.unit, a.mode)); return 0
-        if a.cmd == "enable":
-            carries, changes = sd.enable(a.names, runtime=a.runtime, force=not a.no_force)
-            print(f"carries_install_info={carries}");
-            [print(c) for c in changes];
-            return 0
-        if a.cmd == "disable":
-            [print(c) for c in sd.disable(a.names, runtime=a.runtime)];
-            return 0
-        if a.cmd == "mask":
-            [print(c) for c in sd.mask(a.names, runtime=a.runtime, force=not a.no_force)]
-            return 0
-        if a.cmd == "unmask":
-            [print(c) for c in sd.unmask(a.names, runtime=a.runtime)];
-            return 0
-        if a.cmd == "daemon-reload":
-            sd.daemon_reload();
-            return 0
-        if a.cmd == "get-unit-file-state":
-            print(sd.get_unit_file_state(a.file));
-            return 0
-        if a.cmd == "match":
-            flags = 0 if a.case_sensitive else re.IGNORECASE
-            results = sd.match_units(a.patterns, types=a.types, flags=flags, include_inactive_files=not a.no_files)
-            for r in results:
-                print(f"
-                    {r.name:40} {r.kind:7} {r.active_state:10} {r.sub_state:8}
-                    {(r.unit_file_state or '-'):10} {(r.load_state or '-'):10} {r.description}"
-                )
-            return 0
-        return 1
-
-    except UnitNotFoundError:
-        print("unknown"); return 4
-
-    except AccessDeniedError as e:
-        print(f"access-denied: {e}", file=sys.stderr); return 1
-
-    except JobFailedError as e:
-        print(f"job-failed: {e}", file=sys.stderr); return 1
-
-    except SystemdError as e:
-        print(f"error: {e}", file=sys.stderr); return 1
-
-    finally:
-        sd.close()
-
-if __name__ == "__main__":
-    raise SystemExit(_cli())
-
-"""

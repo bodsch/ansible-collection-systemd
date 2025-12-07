@@ -45,7 +45,9 @@ def bool_to_systemd(value: Any) -> str:
     return str(value)
 
 
-def normalize_list_or_scalar(value: Any, default: Optional[str] = None) -> Optional[str]:
+def normalize_list_or_scalar(
+    value: Any, default: Optional[str] = None
+) -> Optional[str]:
     """
     Normalize a scalar or iterable value into a comma-separated string.
 
