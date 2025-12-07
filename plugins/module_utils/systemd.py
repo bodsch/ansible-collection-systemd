@@ -40,23 +40,23 @@ MASKED_STATES = {"masked", "masked-runtime"}
 
 
 class SystemdError(Exception):
-    """Basisfehler für SystemdClient."""
+    """Base exception for all SystemdClient-related errors."""
 
 
 class UnitNotFoundError(SystemdError):
-    """Unit existiert nicht."""
+    """Raised when a requested unit does not exist."""
 
 
 class AccessDeniedError(SystemdError):
-    """Zugriff verweigert (PolicyKit/Root)."""
+    """Raised when access is denied (PolicyKit/root permissions)."""
 
 
 class JobFailedError(SystemdError):
-    """systemd-Job fehlgeschlagen."""
+    """Raised when a systemd job finishes with a failure state."""
 
 
 class DBusIOError(SystemdError):
-    """Allgemeiner D-Bus/Transportfehler."""
+    """Raised for generic D-Bus or transport-level errors."""
 
 
 def _map_dbus_error(e: DBusException, ctx: str = "") -> SystemdError:
@@ -137,7 +137,7 @@ class InstallChange:
 
 @dataclass(frozen=True)
 class UnitStatus:
-    """Kombinierte Sicht auf Unit + UnitFile."""
+    """Combined view of runtime unit status and install-time unit file state."""
 
     name: str
     kind: str  # service|socket|timer|...
@@ -154,14 +154,27 @@ class UnitStatus:
 
 
 class SystemdClient:
-    def __init__(self, *, user_manager: bool = False, use_glib: bool = False) -> None:
+    """
+    """
 
+    def __init__(self, *, user_manager: bool = False, use_glib: bool = False) -> None:
+        """
+        Create a new SystemdClient instance.
+
+        Args:
+            user_manager: If True, connect to the per-user systemd manager
+                (session bus). If False, connect to the system-wide manager
+                (system bus).
+            use_glib: If True, initialize a GLib main loop and enable
+                signal-based waiting for jobs. If False, a pure polling-based
+                approach is used instead.
+        """
         self._glib_enabled = bool(use_glib)
 
         if use_glib:
             if DBusGMainLoop is None:
                 raise RuntimeError(
-                    "GLib nicht verfügbar. Installiere 'python3-gi' und 'python3-dbus'."
+                    "GLib is not available. Install 'python3-gi' and 'python3-dbus'."
                 )
             DBusGMainLoop(set_as_default=True)
 
@@ -194,8 +207,13 @@ class SystemdClient:
     # --------- Existence / Status ---------
 
     def exists(self, unit: str, *, installed_ok: bool = True) -> bool:
-        """True, wenn die Unit geladen ist oder als Unit-File existiert.
-        installed_ok=False -> nur 'geladen' zählt."""
+        """
+        Check whether a unit exists.
+
+        A unit counts as existing if it is currently loaded or if a unit file
+        for it exists on disk. When installed_ok is False, only a loaded unit
+        counts as existing.
+        """
         try:
             self._manager.GetUnit(unit)  # geladen?
             return True
@@ -209,7 +227,12 @@ class SystemdClient:
                 return False
 
     def ensure_loaded(self, unit: str) -> str:
-        """Gibt Objektpfad zurück. Lädt Unit, falls nicht geladen."""
+        """
+        Ensure that a unit is loaded and return its D-Bus object path.
+
+        The method first tries GetUnit() and falls back to LoadUnit() if
+        the unit is not currently loaded.
+        """
         try:
             return str(self._manager.GetUnit(unit))
         except DBusException:
@@ -326,9 +349,20 @@ class SystemdClient:
         poll_interval: float = 0.1,
     ) -> str:
         """
-        Wartet per Polling auf Abschluss eines systemd-Jobs.
-        Rückgabe: 'done' oder 'failed' oder 'timeout-wait'.
-        Hinweis: 'canceled/dependency/timeout/skipped' sind ohne Signals nicht unterscheidbar.
+        Wait for completion of a systemd job by polling its state.
+
+        Args:
+            job_path: D-Bus object path of the job.
+            timeout_sec: Optional timeout in seconds. If None, wait indefinitely.
+            raise_on_fail: If True, raise JobFailedError on failed or timed-out jobs.
+            poll_interval: Time in seconds between poll iterations.
+
+        Returns:
+            One of "done", "failed" or "timeout-wait".
+
+        Note:
+            Without GLib signals, result details like "canceled", "dependency",
+            "timeout" or "skipped" cannot be distinguished precisely.
         """
         # Job-Properties einmalig lesen (const)
         job_obj = self._bus.get_object(SERVICE, job_path)
@@ -532,13 +566,17 @@ class SystemdClient:
         return out
 
     def list_unit_files(self) -> List[UnitFile]:
+        """
+        List all unit files known to systemd.
+
+        Returns:
+            A list of UnitFile objects containing path and state for each unit.
+        """
         try:
             rows = self._manager.ListUnitFiles()
-
-            print(rows)
-
         except DBusException as e:
             raise _map_dbus_error(e, "ListUnitFiles")
+
         return [UnitFile(path=str(r[0]), state=str(r[1])) for r in rows]
 
     def daemon_reload(self) -> None:
@@ -611,17 +649,20 @@ class SystemdClient:
         include_inactive_files: bool = True,
     ) -> List[UnitStatus]:
         """
-        Findet Units, deren NAME (z.B. 'nginx.service') auf einen der Regexe matcht.
-        Aggregiert Live-Status (ListUnits) und Install-Status (ListUnitFiles).
+        Find units whose names match any of the given regular expressions.
+
+        The result merges runtime information from ListUnits() with install-time
+        information from ListUnitFiles().
 
         Args:
-          patterns: Liste Python-Regexe.
-          types: erlaubte Suffixe.
-          flags: re-Flags.
-          include_inactive_files: auch UnitFiles ohne laufende Unit berücksichtigen.
+            patterns: Sequence of Python regular expressions.
+            types: Iterable of unit kinds to consider (e.g. {"service", "timer"}).
+            flags: Regex flags passed to re.compile().
+            include_inactive_files:
+                If True, include unit files that are not currently loaded.
 
         Returns:
-          Liste UnitStatus, sortiert nach Name.
+            A list of UnitStatus objects, sorted by unit name.
         """
         rx = [re.compile(p, flags) for p in patterns]
         type_set = set(types)
@@ -687,7 +728,15 @@ class SystemdClient:
     # --------- Low-level ---------
 
     def _get_unit_path(self, unit: str) -> str:
-        """GetUnit mit Fallback auf LoadUnit für 'inactive/dead' Units."""
+        """
+        Resolve the D-Bus object path for a unit.
+
+        The method first tries GetUnit() and falls back to LoadUnit() so that
+        inactive/dead units can also be resolved.
+
+        Raises:
+            SystemdError: When the unit cannot be resolved.
+        """
         try:
             return str(self._manager.GetUnit(unit))
         except DBusException as e1:
