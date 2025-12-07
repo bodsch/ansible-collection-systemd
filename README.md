@@ -35,8 +35,9 @@ Documentation for the collection.
 
 | Name                      | Description |
 |:--------------------------|:----|
-| [journalctl](./plugins/modules/journalctl.py)   | Query the systemd journal with a very limited number of possible parameters |
-| [unit_file](./plugins/modules/unit_file.py)     | This can be used to create a systemd unit file. The `service`, `timer` and `socket` types are supported. |
+| [bodsch.systemd.journalctl](./plugins/modules/journalctl.py)       | Query the systemd journal with a very limited number of possible parameters |
+| [bodsch.systemd.unit_file](./plugins/modules/unit_file.py)         | This can be used to create a systemd unit file. The `service`, `timer` and `socket` types are supported. |
+| [bodsch.systemd.systemd_timer](./plugins/modules/systemd_timer.py) | This can be used to create a systemd timer file. |
 
 
 ## Installing this collection

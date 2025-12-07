@@ -9,6 +9,8 @@ from __future__ import absolute_import, division, print_function
 
 from ansible.module_utils.basic import AnsibleModule
 
+# ---------------------------------------------------------------------------------------
+
 DOCUMENTATION = """
 module: journalctl
 author:
@@ -85,6 +87,8 @@ stderr:
     - The output as a list on stderr
   type: list
 """
+
+# ---------------------------------------------------------------------------------------
 
 
 class JournalCtl(object):

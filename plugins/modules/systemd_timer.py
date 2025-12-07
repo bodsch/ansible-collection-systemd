@@ -21,126 +21,129 @@ from ansible_collections.bodsch.systemd.plugins.module_utils.validator import (
     SystemdValidator,
 )
 
+# ---------------------------------------------------------------------------------------
+
 DOCUMENTATION = r"""
 ---
 module: systemd_timer
+version_added: 1.4.0
+author: "Bodo Schulz (@bodsch) <bodo@boone-schulz.de>"
+
 short_description: Manage systemd timer unit files
 description:
-  - Erstellt, aktualisiert oder entfernt systemd Timer Units (.timer Dateien).
-  - Unterstützt generische Optionen für die Abschnitte [Unit], [Timer], [Install].
-  - Bietet eine strukturierte, dynamische Definition von OnCalendar über schedule/schedules.
+  - Create, update, or remove systemd timer units (.timer files).
+  - Support generic options for the [Unit], [Timer], and [Install] sections.
+  - Provide a structured, dynamic definition of OnCalendar via schedule/schedules.
+
 options:
   name:
     description:
-      - Basisname der Timer Unit (ohne ".timer").
-      - Die Datei wird unter I(path)/<name>.timer geschrieben.
+      - Base name of the timer unit (without ".timer").
+      - The file is written to I(path)/<name>.timer.
     type: str
     required: true
   state:
     description:
-      - Ob die Timer Unit Datei vorhanden sein soll.
+      - Whether the timer unit file should be present.
     type: str
     choices: [present, absent]
     default: present
   path:
     description:
-      - Basisverzeichnis für die .timer Datei.
+      - Base directory for the .timer file.
     type: str
-    default: /etc/systemd/system
+    default: /lib/systemd/system
   unit:
     description:
-      - Optionen für den [Unit] Abschnitt als Key/Value Mapping.
-      - Werte können Skalare oder Listen sein; Booleans werden in C(true)/C(false) umgewandelt.
+      - Options for the [Unit] section as a key/value mapping.
+      - Values can be scalars or lists; booleans are converted to C(true)/C(false).
     type: dict
   timer:
     description:
-      - Optionen für den [Timer] Abschnitt als Key/Value Mapping.
-      - Wenn C(OnCalendar) hier gesetzt ist, überschreibt es schedule/schedules.
+      - Options for the [Timer] section as a key/value mapping.
+      - If C(OnCalendar) is set here, it overrides schedule/schedules.
     type: dict
   install:
     description:
-      - Optionen für den [Install] Abschnitt als Key/Value Mapping.
+      - Options for the [Install] section as a key/value mapping.
     type: dict
   schedule:
     description:
-      - Strukturierte Definition für eine einzelne OnCalendar-Spezifikation.
-      - Wird ignoriert, wenn C(timer.OnCalendar) gesetzt ist.
+      - Structured definition for a single OnCalendar specification.
+      - Ignored when C(timer.OnCalendar) is set.
     type: dict
     suboptions:
       raw:
         description:
-          - Rohes systemd Calendar-Pattern, das unverändert als OnCalendar geschrieben wird.
+          - Raw systemd calendar pattern written as-is to OnCalendar.
         type: str
       special:
         description:
-          - Shortcut wie C(hourly), C(daily), C(weekly), C(monthly), C(yearly), C(quarterly), C(semiannually) etc.
+          - Shortcut like C(hourly), C(daily), C(weekly), C(monthly), C(yearly), C(quarterly), C(semiannually), etc.
         type: str
       year:
         description:
-          - Jahr(e), z.B. C(2025) oder Liste/Bereich als String (C(2025,2026), C(2025..2030)).
+          - Year(s), for example C(2025) or list/range as string (C(2025,2026), C(2025..2030)).
         type: raw
       month:
         description:
-          - Monat(e), z.B. C(1), C(01), C(3,6,9) oder C(*).
+          - Month(s), for example C(1), C(01), C(3,6,9) or C(*).
         type: raw
       day:
         description:
-          - Tag(e) des Monats, z.B. C(1), C(01), C(1,15), C(*/2).
+          - Day(s) of month, for example C(1), C(01), C(1,15), C(*/2).
         type: raw
       weekday:
         description:
-          - Wochentag(e), z.B. C(Mon), C(Mon,Fri) oder numerisch C(1..7).
+          - Weekday(s), for example C(Mon), C(Mon,Fri) or numeric C(1..7).
         type: raw
       hour:
         description:
-          - Stunde(n), z.B. C(2), C(02), C(0..23), C(*/2).
+          - Hour(s), for example C(2), C(02), C(0..23), C(*/2).
         type: raw
       minute:
         description:
-          - Minute(n), z.B. C(0), C(0,30), C(*/15).
+          - Minute(s), for example C(0), C(0,30), C(*/15).
         type: raw
       second:
         description:
-          - Sekunde(n), Standard ist C(00).
+          - Second(s), default is C(00).
         type: raw
   schedules:
     description:
-      - Liste mehrerer strukturierter OnCalendar-Definitionen.
-      - Jede Liste wird zu einem eigenen C(OnCalendar=) Eintrag.
+      - List of multiple structured OnCalendar definitions.
+      - Each list item becomes its own C(OnCalendar=) entry.
     type: list
     elements: dict
   enabled:
     description:
-      - Ob der Timer per C(systemctl enable/disable) aktiviert werden soll.
-      - C(null) bedeutet, dass der Enable-Status nicht verändert wird.
+      - Whether the timer should be enabled or disabled using C(systemctl enable/disable).
+      - C(null) means the enable state is not changed.
     type: bool
   daemon_reload:
     description:
-      - Ob nach Änderung der Datei C(systemctl daemon-reload) ausgeführt werden soll.
+      - Whether to run C(systemctl daemon-reload) after changing the file.
     type: bool
     default: true
   owner:
     description:
-      - Besitzer der .timer Datei.
+      - Owner of the .timer file.
     type: str
     default: root
   group:
     description:
-      - Gruppe der .timer Datei.
+      - Group of the .timer file.
     type: str
     default: root
   mode:
     description:
-      - Dateimodus der .timer Datei.
+      - File mode of the .timer file.
     type: str
     default: '0644'
-
-author:
-  - Your Name (@yourhandle)
 """
 
 EXAMPLES = r"""
-- name: Einfacher daily Timer für Certbot
+- name: Simple daily timer for Certbot
   systemd_timer:
     name: certbot
     unit:
@@ -154,7 +157,7 @@ EXAMPLES = r"""
       WantedBy: timers.target
     enabled: true
 
-- name: Timer zweimal täglich zu festen Uhrzeiten
+- name: Timer twice a day at fixed times
   systemd_timer:
     name: certbot
     unit:
@@ -171,7 +174,7 @@ EXAMPLES = r"""
       WantedBy: timers.target
     enabled: true
 
-- name: Komplexeres Pattern - Mo und Do um 02:58
+- name: More complex pattern - Mon and Thu at 02:58
   systemd_timer:
     name: certbot
     unit:
@@ -185,7 +188,7 @@ EXAMPLES = r"""
     install:
       WantedBy: timers.target
 
-- name: Rohes Calendar-Pattern direkt verwenden
+- name: Use raw calendar pattern directly
   systemd_timer:
     name: custom
     unit:
@@ -197,7 +200,7 @@ EXAMPLES = r"""
     install:
       WantedBy: timers.target
 
-- name: Timer entfernen
+- name: Remove timer
   systemd_timer:
     name: certbot
     state: absent
@@ -206,20 +209,22 @@ EXAMPLES = r"""
 
 RETURN = r"""
 timer_path:
-  description: Pfad zur .timer Datei.
+  description: Path to the .timer file.
   returned: always
   type: str
 on_calendar:
-  description: Liste der erzeugten OnCalendar-Ausdrücke.
+  description: List of generated OnCalendar expressions.
   returned: success
   type: list
   sample:
     - Mon,Thu *-*-* 02:58:00
 changed:
-  description: Ob sich etwas geändert hat.
+  description: Whether anything changed.
   returned: always
   type: bool
 """
+
+# ---------------------------------------------------------------------------------------
 
 
 class SystemdTimer:
@@ -356,12 +361,6 @@ class SystemdTimer:
                 weekday_str = ",".join(normalized)
             else:
                 weekday_str = normalize_weekday_token(weekday, self.module)
-
-        # if weekday is not None:
-        #     if isinstance(weekday, (list, tuple, set)):
-        #         weekday_str = ",".join(str(w) for w in weekday)
-        #     else:
-        #         weekday_str = str(weekday)
 
         year = timer_component(schedule.get("year"), default="*")
         month = timer_component(schedule.get("month"), default="*", pad_width=2)
