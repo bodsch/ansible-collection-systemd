@@ -20,17 +20,20 @@ class FilterModule(object):
 
     def get_service(self, data, search_for, unit_type="service", state="running"):
         """ """
-        name = None
+        display.vv(f"get_service(data, {search_for}, {unit_type}, {state}")
+
+        name = ""
+
         regex_list_compiled = re.compile(f"^{search_for}.*")
 
         match = {k: v for k, v in data.items() if re.match(regex_list_compiled, k)}
 
-        # display.vv(f"found: {match}  {type(match)} {len(match)}")
+        display.vv(f"found: {match}  {type(match)} {len(match)}")
 
         if isinstance(match, dict) and len(match) > 0:
             values = list(match.values())[0]
             if values.get("state") == state:
                 name = values.get("name", search_for).replace(f".{unit_type}", "")
 
-        # display.vv(f"= result {name}")
+        display.vv(f"= result {name}")
         return name
