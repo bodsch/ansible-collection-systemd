@@ -20,7 +20,7 @@ class FilterModule(object):
 
     def get_service(self, data, search_for, unit_type="service", state="running"):
         """ """
-        display.vv(f"get_service(data, {search_for}, {unit_type}, {state}")
+        display.vv(f"get_service(data, search_for: {search_for}, unit_type: {unit_type}, state: {state}")
 
         name = ""
 
