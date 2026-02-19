@@ -65,10 +65,10 @@ jobs:
 
     steps:
       - name: check out the codebase.
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
 
       - name: 🐍 set up python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: "${{ matrix.python_version }}"
 
@@ -118,10 +118,10 @@ jobs:
 
     steps:
       - name: check out the codebase.
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
 
       - name: 🐍 set up python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: "${{ matrix.python_version }}"
 
