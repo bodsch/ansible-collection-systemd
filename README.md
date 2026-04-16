@@ -73,17 +73,142 @@ be manually installed using pip:
 ## Using this collection
 
 
-You can either call modules by their Fully Qualified Collection Name (FQCN), such as `bodsch.systemd.remove_ansible_backups`, 
+You can either call modules by their Fully Qualified Collection Name (FQCN), such as `bodsch.systemd.coredump`, 
 or you can call modules by their short name if you list the `bodsch.systemd` collection in the playbook's `collections` keyword:
 
 ```yaml
 ---
-- name: remove older ansible backup files
-  bodsch.systemd.remove_ansible_backups:
-    path: /etc
-    holds: 4
+- name: configure systemd coredump
+  bodsch.systemd.coredump:
+    process_size_max: 32G
+    external_size_max: 32G
 ```
 
+
+## Examples
+
+### `bodsch.systemd.journalctl`
+
+```yaml
+
+- name: query the systemd journal
+  bodsch.systemd.journalctl:
+    identifier: chrony
+    lines: 150
+  register: journalctl
+  when:
+    - restarted is defined
+    - restarted.failed
+    - chrony_query_journald
+    - ansible_service_mgr == 'systemd'
+  notify:
+    - journalctl output
+
+- name: journalctl output
+  ansible.builtin.debug:
+    msg: "{{ journalctl.stdout }}"
+  when:
+    journalctl.stdout is defined
+```
+
+### `bodsch.systemd.systemd_timer`
+
+```yaml
+name: create systemd timer file
+bodsch.systemd.systemd_timer:
+  name: certbot-renew
+  unit:
+    Description: Run Certbot on specific weekdays
+  timer:
+    persistent: true
+    randomized_delay_sec: "43200"
+  schedule:
+    weekday: "{{ certbot_cron.weekday | default(['Sat']) }}"
+    hour: "{{ certbot_cron.hour | default('2') }}"
+    minute: "{{ certbot_cron.minute | default('58') }}"
+  install:
+    wanted_by: timers.target
+  path: "{{ systemd_lib_directory }}"
+notify:
+  - daemon reload
+```
+
+
+
+### `bodsch.systemd.unit_file`
+
+```yaml
+- name: create getty drop-ins
+  bodsch.systemd.unit_file:
+    name: "getty@tty1"
+    state: "present"
+    unit_type: "service"
+    drop_ins:
+      - name: autologin
+        state: present
+        service:
+          ExecStart:
+            - ""
+            - "{% raw %}-/sbin/agetty -o '-p -f -- \\\\u' --noclear --autologin username %I $TERM{% endraw %}"
+          Type: simple
+
+      - name: noclear
+        state: absent
+        service:
+          TTYVTDisallocate: false
+  when:
+    - ansible_facts.service_mgr == 'systemd'
+
+- name: create nextcloud-cron systemd service
+  bodsch.systemd.unit_file:
+    name: "nextcloud-cron"
+    state: "present"
+    unit_type: "service"
+    unit_file:
+      unit:
+        Description: Nextcloud cron.php job
+      service:
+        User: www-data
+        ExecCondition: php -f /var/www/nextcloud/server/occ status --exit-code
+        ExecStart: /usr/bin/php -f /var/www/nextcloud/server/cron.php
+        KillMode: process
+  when:
+    - ansible_facts.service_mgr == 'systemd'
+
+- name: create nextcloud-cron systemd timer
+  bodsch.systemd.unit_file:
+    name: "nextcloud-cron"
+    state: "present"
+    unit_type: "timer"
+    unit_file:
+      unit:
+        Description: Run Nextcloud cron.php every 5 minutes
+      timer:
+        OnBootSec: 5min
+        OnUnitActiveSec: 5min
+        Unit: nextcloud-cron.service
+      install:
+        WantedBy: timers.target
+  when:
+    - ansible_facts.service_mgr == 'systemd'
+
+- name: create systemd unit files
+  bodsch.systemd.unit_file:
+    name: "{{ item.name }}"
+    state: "{{ item.state }}"
+    unit_type: "{{ item.unit_type }}"
+    overwrite: "{{ item.overwrite | default(omit) }}"
+    drop_ins: "{{ item.drop_ins | default(omit) }}"
+    unit_file: "{{ item.unit_file | default(omit) }}"
+  loop:
+    "{{ systemd_unit }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: systemd_unit_file
+  ignore_errors: true
+  when:
+    - systemd_unit | count > 0
+```
 
 ## Contribution
 
