@@ -1,2 +1,32 @@
+# Ansible Role:  `bodsch.systemd.networkd`
 
-# https://www.freedesktop.org/software/systemd/man/networkd.conf.html
+Configure systemd networkd.
+
+
+## Role Variables
+
+```yaml
+systemd_networkd: {}
+  # speed_meter: false
+  # speed_meter_interval_sec: 10sec
+  # manage_foreign_routing_policy_rules: true
+  # manage_foreign_routes: true
+  # route_table: ""
+  # ipv6_privacy_extensions: false
+  # dhcp4:
+  #   duid_type: vendor
+  #   duid_raw_data: ""
+  # dhcp6:
+  #   duid_type: vendor
+  #   duid_raw_data: ""
+```
+
+## freedesktop
+
+[systemd networkd](https://www.freedesktop.org/software/systemd/man/networkd.conf.html)
+
+---
+
+## Author
+
+- Bodo Schulz

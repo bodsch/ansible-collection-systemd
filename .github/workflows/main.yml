@@ -19,12 +19,20 @@ on:
       - 'feature/**'
       - 'fix/**'
       - '!doc/**'
+    paths:
+      - "!Makefile"
+      - "!README.md"
+      - '!roles/*/*.md'
   pull_request:
     branches:
       - 'main'
       - 'feature/**'
       - 'fix/**'
       - '!doc/**'
+    paths:
+      - "!Makefile"
+      - "!README.md"
+      - '!roles/*/*.md'
 
 env:
   COLLECTION_NAMESPACE: bodsch

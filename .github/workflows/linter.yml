@@ -3,17 +3,9 @@
 name: lint plugins
 
 on:
+  schedule:
+    - cron: "20 4 * * 0"
   workflow_dispatch:
-    inputs:
-      logLevel:
-        description: 'Log level'
-        required: true
-        default: 'warning'
-        type: choice
-        options:
-          - info
-          - warning
-          - debug
   push:
     branches:
       - 'feature/**'
@@ -43,8 +35,6 @@ jobs:
       fail-fast: false
       matrix:
         python_version:
-          - "3.10"
-          - "3.11"
           - "3.12"
           - "3.13"
 
@@ -67,3 +57,32 @@ jobs:
       - name: Lint code.
         run: |
           pycodestyle plugins/ --config=.config/pycodestyle.cfg --statistics --count --exclude=test_*.py --exclude=hooks/*.py
+
+  flake8:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python_version:
+          - "3.12"
+          - "3.13"
+
+    steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+
+      - name: 🐍 set up python
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "${{ matrix.python_version }}"
+
+      - name: Install test dependencies.
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install flake8
+
+      - name: Lint code.
+        run: |
+          flake8 --append-config=.config/pycodestyle.cfg
