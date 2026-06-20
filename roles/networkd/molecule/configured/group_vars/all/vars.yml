@@ -14,4 +14,66 @@ systemd_networkd:
     duid_type: ""                             # vendor
     duid_raw_data: ""
 
+systemd_networkd_profiles:
+  link: {}
+  netdev:
+    br0:
+      state: absent
+      config:
+        NetDev:
+          Name: br0
+          Kind: bridge
+
+  network:
+    etx0:
+      state: absent
+      description: device etx0 for special stuff
+      config:
+        Match:
+          Name: "etx0"
+        Network:
+          DHCP: false
+          IPv6AcceptRouterAdvertisements: false
+          Domains: "your.tld"
+          DNS:
+            - 1.1.1.1
+            - 141.1.1.1
+          Address:
+            - "192.0.2.176/24"
+            - "2001:db8::302/64"
+            - "fc00:0:0:103::302/64"
+          Gateway:
+            - "192.0.2.1"
+            - "2001:db8::1"
+    uplink:
+      config:
+        Match:
+          Name: etx0
+        Network:
+          Bridge: br0
+
+    etX1:
+      state: present
+      config:
+        Match:
+          Name: etX1
+        Network:
+          DHCP: false
+          DNS:
+            - 1.1.1.1
+            - 141.1.1.1
+        Address:
+          - Address: 10.10.0.1/24
+            Label: primary
+          - Address: 10.10.0.2/24
+        Route:
+          - Gateway: 10.10.0.254
+            Destination: 10.20.0.0/16
+          - Gateway: 10.10.0.253
+            Destination: 10.30.0.0/16
+
+  apply_config: false
+  enable_resolved: false
+  validate: true
+
 ...

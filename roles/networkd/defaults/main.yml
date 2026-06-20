@@ -14,5 +14,13 @@ systemd_networkd: {}
   #   duid_type: vendor
   #   duid_raw_data: ""
 
+systemd_networkd_profiles:
+  link: {}
+  netdev: {}
+  network: {}
+
+  apply_config: false
+  enable_resolved: false
+
 ...
 

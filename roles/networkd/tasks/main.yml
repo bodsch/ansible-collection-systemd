@@ -12,4 +12,71 @@
     owner: root
     group: root
 
+- name: manage all systemd-networkd profiles in a single call
+  bodsch.systemd.networkd_profiles:
+    profiles:
+      link: "{{ systemd_networkd_profiles.link | default({}) }}"
+      netdev: "{{ systemd_networkd_profiles.netdev | default({}) }}"
+      network: "{{ systemd_networkd_profiles.network | default({}) }}"
+    directory: /etc/systemd/network
+    mode: "0644"
+    purge: "{{ systemd_networkd_profiles.purge | default(false) | bool }}"
+    validate: "{{ systemd_networkd_profiles.validate | default(false) | bool }}"
+    validate_strict: "{{ systemd_networkd_profiles.validate_strict | default(false) | bool }}"
+    validate_timeout: 30
+  when:
+    - systemd_networkd_profiles is defined
+  register: systemd_networkd_profiles_changed
+
+- name: enable systemd-resolved
+  when:
+    - systemd_networkd_profiles.enable_resolved | default(false) | bool
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    enabled: true
+    state: started
+
+# - name: manage systemd-networkd profiles
+#   when:
+#     - systemd_networkd_profiles is defined
+#   block:
+#
+#     - name: manage .link profiles
+#       bodsch.systemd.networkd_profile:
+#         name: "{{ item.key }}"
+#         profile_type: link
+#         state: "{{ item.value.state | default('present') }}"
+#         description: "{{ item.value.description | default(omit) }}"
+#         config: "{{ item.value.config | default({}) }}"
+#       loop: "{{ (systemd_networkd_profiles.link | default({})) | dict2items }}"
+#       loop_control:
+#         label: "{{ item.key }}.link"
+#       notify: reload systemd-networkd
+#
+#     - name: manage .netdev profiles
+#       bodsch.systemd.networkd_profile:
+#         name: "{{ item.key }}"
+#         profile_type: netdev
+#         state: "{{ item.value.state | default('present') }}"
+#         description: "{{ item.value.description | default(omit) }}"
+#         config: "{{ item.value.config | default({}) }}"
+#       loop: "{{ (systemd_networkd_profiles.netdev | default({})) | dict2items }}"
+#       loop_control:
+#         label: "{{ item.key }}.netdev"
+#       notify: reload systemd-networkd
+#
+#     - name: manage .network profiles
+#       bodsch.systemd.networkd_profile:
+#         name: "{{ item.key }}"
+#         profile_type: network
+#         state: "{{ item.value.state | default('present') }}"
+#         description: "{{ item.value.description | default(omit) }}"
+#         config: "{{ item.value.config | default({}) }}"
+#       loop: "{{ (systemd_networkd_profiles.network | default({})) | dict2items }}"
+#       loop_control:
+#         label: "{{ item.key }}.network"
+#       register: systemd_networkd_profiles_changed
+#       notify: reload systemd-networkd
+
+
 ...
