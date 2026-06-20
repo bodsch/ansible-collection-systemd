@@ -52,6 +52,28 @@ systemd_networkd_profiles:
         Network:
           Bridge: br0
 
+    etX1:
+      state: present
+      config:
+        Match:
+          Name: etX1
+        Network:
+          DHCP: false
+          DNS:
+            - 1.1.1.1
+            - 141.1.1.1
+        Address:
+          - Address: 10.10.0.1/24
+            Label: primary
+          - Address: 10.10.0.2/24
+        Route:
+          - Gateway: 10.10.0.254
+            Destination: 10.20.0.0/16
+          - Gateway: 10.10.0.253
+            Destination: 10.30.0.0/16
+
   apply_config: false
   enable_resolved: false
+  validate: true
+
 ...

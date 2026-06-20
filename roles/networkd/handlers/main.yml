@@ -1,0 +1,11 @@
+---
+
+- name: daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: reload systemd-networkd
+  ansible.builtin.systemd:
+    name: systemd-networkd
+    state: reloaded
+    # sleep: 5
