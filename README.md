@@ -35,9 +35,10 @@ Documentation for the collection.
 
 | Name                      | Description |
 |:--------------------------|:----|
-| [bodsch.systemd.journalctl](./plugins/modules/journalctl.py)       | Query the systemd journal with a very limited number of possible parameters |
-| [bodsch.systemd.unit_file](./plugins/modules/unit_file.py)         | This can be used to create a systemd unit file. The `service`, `timer` and `socket` types are supported. |
-| [bodsch.systemd.systemd_timer](./plugins/modules/systemd_timer.py) | This can be used to create a systemd timer file. |
+| [bodsch.systemd.journalctl](./plugins/modules/journalctl.py)               | Query the systemd journal with a very limited number of possible parameters |
+| [bodsch.systemd.unit_file](./plugins/modules/unit_file.py)                 | This can be used to create a systemd unit file. The `service`, `timer` and `socket` types are supported. |
+| [bodsch.systemd.systemd_timer](./plugins/modules/systemd_timer.py)         | This can be used to create a systemd timer file. |
+| [bodsch.systemd.networkd_profiles](./plugins/modules/networkd_profiles.py) | Manages a whole set of systemd-networkd profile files. (`.link` / `.netdev` / `.network`) |
 
 
 ## Installing this collection
@@ -90,6 +91,28 @@ or you can call modules by their short name if you list the `bodsch.systemd` col
 ### `bodsch.systemd.journalctl`
 
 ```yaml
+- name: last 50 chrony entries, newest first
+  bodsch.systemd.journalctl:
+    identifier: chrony
+    lines: 50
+    reverse: true
+  register: chrony_log
+
+- name: errors from systemd-networkd in the last hour, as parsed entries
+  bodsch.systemd.journalctl:
+    unit: systemd-networkd.service
+    priority: err
+    since: "1 hour ago"
+    output: json
+  register: networkd_errors
+
+- name: query several units at once
+  bodsch.systemd.journalctl:
+    units:
+      - nginx.service
+      - php-fpm.service
+    priority: warning
+    lines: 200
 
 - name: query the systemd journal
   bodsch.systemd.journalctl:
@@ -209,6 +232,34 @@ notify:
   when:
     - systemd_unit | count > 0
 ```
+
+## `bodsch.systemd.networkd_profiles`
+
+```yaml
+- name: manage networkd profiles with validation
+  bodsch.systemd.networkd_profiles:
+    profiles:
+      network:
+        wg0:
+          state: present
+          config:
+            Match:
+              Name: wg0
+            Network:
+              Address: 10.10.0.1/24
+            Address:
+              - Address: 10.10.0.1/24
+                Label: primary
+              - Address: 10.10.0.2/24
+            Route:
+              - Gateway: 10.10.0.254
+                Destination: 10.20.0.0/16
+              - Gateway: 10.10.0.253
+                Destination: 10.30.0.0/16
+    validate: true
+    purge: false
+```
+
 
 ## Contribution
 
