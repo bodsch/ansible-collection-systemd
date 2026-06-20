@@ -1,13 +1,27 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-# (c) 2020-2023, Bodo Schulz <bodo@boone-schulz.de>
+# (c) 2020-2026, Bodo Schulz <bodo@boone-schulz.de>
 # Apache-2.0 (see LICENSE or https://opensource.org/license/apache-2-0)
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Ansible module: bodsch.systemd.journalctl
+
+Query the systemd journal from Ansible playbooks. Read-only; supports unit
+and identifier filtering, time/priority/grep filters, cursor-based
+pagination, JSON parsing and pass-through of arbitrary extra arguments.
+"""
+
 from __future__ import absolute_import, division, print_function
 
+import json
+import shlex
+from typing import Any, Dict, List, Optional, Tuple
+
 from ansible.module_utils.basic import AnsibleModule
+
+__metaclass__ = type
 
 # ---------------------------------------------------------------------------------------
 
@@ -15,181 +29,491 @@ DOCUMENTATION = """
 module: journalctl
 author:
   - Bodo 'bodsch' Schulz (@bodsch)
-short_description: Query the systemd journal with a very limited number of possible parameters.
+short_description: Query the systemd journal.
 version_added: 1.1.0
 
 description:
-  - Query the systemd journal with a very limited number of possible parameters.
-  - In certain cases there are errors that are not clearly traceable but are logged in the journal.
-  - This module is intended to be a tool for error analysis.
+  - Wraps the ``journalctl`` binary and returns matching entries.
+  - Read-only; safe in check mode.
+  - All filters are AND-combined the way ``journalctl`` does it natively.
+  - When ``output=json``/``json-pretty`` is selected, every entry is
+    additionally parsed into ``entries`` and the journal cursor of the
+    last entry is exposed as ``cursor``.
 
 options:
-  identifier:
-    description:
-      - Show entries with the specified syslog identifier
-    type: str
-    required: false
   unit:
     description:
-      - Show logs from the specified unit
+      - Show logs from the specified unit (``-u``).
+      - Scalar variant kept for backwards compatibility.
     type: str
-    required: false
+  units:
+    description:
+      - List of units to query. Combined with ``unit`` if both are given.
+      - Each entry produces a separate ``-u`` flag.
+    type: list
+    elements: str
+  identifier:
+    description:
+      - Show entries with the specified syslog identifier (``-t``).
+      - Scalar variant kept for backwards compatibility.
+    type: str
+  identifiers:
+    description:
+      - List of identifiers. Combined with ``identifier`` if both are given.
+      - Each entry produces a separate ``-t`` flag.
+    type: list
+    elements: str
   lines:
     description:
-      - Number of journal entries to show
+      - Number of journal entries to show (``-n``).
     type: int
-    required: false
   reverse:
     description:
-      - Show the newest entries first
+      - Show the newest entries first (``-r``).
     type: bool
-    required: false
+    default: false
+  since:
+    description:
+      - Start of the time window (``--since``).
+      - Anything ``journalctl`` accepts works (e.g. ``"2026-06-20 07:00:00"``,
+        ``"1 hour ago"``, ``"yesterday"``).
+    type: str
+  until:
+    description:
+      - End of the time window (``--until``).
+    type: str
+  priority:
+    description:
+      - Filter by syslog priority (``-p``).
+      - Accepts a level name (C(emerg), C(alert), C(crit), C(err),
+        C(warning), C(notice), C(info), C(debug)), an integer 0-7, or a
+        range like C("0..3").
+    type: str
+  grep:
+    description:
+      - Filter messages by PCRE pattern (``-g``).
+    type: str
+  boot:
+    description:
+      - Restrict to a specific boot (``-b``).
+      - Use C("0") for the current boot, negative offsets like C("-1") for
+        previous boots, or a full 32-character boot ID.
+    type: str
+  output:
+    description:
+      - Output format (``-o``). When omitted, ``journalctl``'s built-in
+        default (C(short)) is used.
+      - When set to C(json) or C(json-pretty), every entry is additionally
+        parsed into the C(entries) return value.
+    type: str
+    choices:
+      - short
+      - short-iso
+      - short-iso-precise
+      - short-precise
+      - short-monotonic
+      - short-unix
+      - short-full
+      - verbose
+      - export
+      - json
+      - json-pretty
+      - cat
+  cursor:
+    description:
+      - Start from the journal entry with this cursor (``--cursor``).
+    type: str
+  after_cursor:
+    description:
+      - Start after the journal entry with this cursor (``--after-cursor``).
+      - Useful for incremental polling.
+    type: str
+  no_pager:
+    description:
+      - Pass ``--no-pager`` (default C(true)).
+      - Has no effect under ``run_command`` but is exposed for completeness.
+    type: bool
+    default: true
   arguments:
     description:
-      - A list of custom attributes
+      - Extra CLI arguments appended verbatim to the ``journalctl`` call.
+      - ``--follow``/``-f`` is rejected because it would block the Ansible
+        task forever.
     type: list
-    required: false
+    elements: str
+    default: []
 """
 
 EXAMPLES = """
-- name: chrony entries from journalctl
+- name: last 50 chrony entries, newest first
   bodsch.systemd.journalctl:
     identifier: chrony
     lines: 50
-  register: journalctl
-  when:
-    - ansible_service_mgr == 'systemd'
+    reverse: true
+  register: chrony_log
 
-- name: journalctl entries from this module
+- name: errors from systemd-networkd in the last hour, as parsed entries
   bodsch.systemd.journalctl:
-    identifier: ansible-journalctl
-    lines: 250
-  register: journalctl
-  when:
-    - ansible_service_mgr == 'systemd'
+    unit: systemd-networkd.service
+    priority: err
+    since: "1 hour ago"
+    output: json
+  register: networkd_errors
+
+- name: query several units at once
+  bodsch.systemd.journalctl:
+    units:
+      - nginx.service
+      - php-fpm.service
+    priority: warning
+    lines: 200
+
+- name: incremental tail using a cursor
+  bodsch.systemd.journalctl:
+    unit: my-app.service
+    after_cursor: "{{ previous.cursor | default(omit) }}"
+    output: json
+  register: my_app_log
 """
 
 RETURN = """
 rc:
-  description:
-    - Return Value
+  description: Return code of the ``journalctl`` invocation.
   type: int
+  returned: always
 cmd:
-  description:
-    - journalctl with the called parameters
-  type: string
+  description: The full command line, shell-quoted for readability.
+  type: str
+  returned: always
 stdout:
-  description:
-    - The output as a list on stdout
+  description: Raw stdout (kept identical to the legacy behaviour).
+  type: str
+  returned: always
+stdout_lines:
+  description: ``stdout`` split on newlines.
   type: list
+  elements: str
+  returned: always
 stderr:
+  description: Raw stderr.
+  type: str
+  returned: always
+entries:
   description:
-    - The output as a list on stderr
+    - Parsed journal entries.
+    - Only populated when ``output`` is ``json`` or ``json-pretty``.
   type: list
+  elements: dict
+  returned: when output is JSON
+cursor:
+  description:
+    - Cursor of the last returned journal entry, suitable for chaining
+      subsequent calls via ``after_cursor``.
+    - Only populated when ``output`` is ``json`` or ``json-pretty``.
+  type: str
+  returned: when output is JSON and at least one entry was found
+changed:
+  description: Always ``false``; the module is read-only.
+  type: bool
+  returned: always
 """
 
 # ---------------------------------------------------------------------------------------
 
+_FORBIDDEN_EXTRA_ARGS: Tuple[str, ...] = ("-f", "--follow")
+_JSON_FORMATS: Tuple[str, ...] = ("json", "json-pretty")
 
-class JournalCtl(object):
-    """ """
 
-    module = None
+class JournalCtl:
+    """
+    Query the systemd journal.
 
-    def __init__(self, module):
-        """ """
-        self.module = module
+    Builds a ``journalctl`` argument vector from a structured set of options
+    and exposes a single :meth:`run` entry point that returns a dict
+    suitable for :func:`AnsibleModule.exit_json`.
+    """
 
-        self._journalctl = module.get_bin_path("journalctl", True)
+    def __init__(self, module: AnsibleModule) -> None:
+        """
+        :param module: The active AnsibleModule instance.
+        """
+        self.module: AnsibleModule = module
+        self._journalctl: str = module.get_bin_path("journalctl", required=True)
 
-        self.unit = module.params.get("unit")
-        self.identifier = module.params.get("identifier")
-        self.lines = module.params.get("lines")
-        self.reverse = module.params.get("reverse")
-        self.arguments = module.params.get("arguments")
+        params: Dict[str, Any] = module.params
 
-    def run(self):
-        """ """
-        result = dict(
-            rc=1,
-            failed=True,
+        self.units: List[str] = self._merge_scalar_and_list(
+            params.get("unit"), params.get("units")
+        )
+        self.identifiers: List[str] = self._merge_scalar_and_list(
+            params.get("identifier"), params.get("identifiers")
+        )
+
+        self.lines: Optional[int] = params.get("lines")
+        self.reverse: bool = bool(params.get("reverse"))
+        self.since: Optional[str] = params.get("since")
+        self.until: Optional[str] = params.get("until")
+        self.priority: Optional[str] = params.get("priority")
+        self.grep: Optional[str] = params.get("grep")
+        self.boot: Optional[str] = params.get("boot")
+        self.output: Optional[str] = params.get("output")
+        self.cursor: Optional[str] = params.get("cursor")
+        self.after_cursor: Optional[str] = params.get("after_cursor")
+        self.no_pager: bool = bool(params.get("no_pager"))
+        self.arguments: List[str] = list(params.get("arguments") or [])
+
+    # -- public API ----------------------------------------------------------------------
+
+    def run(self) -> Dict[str, Any]:
+        """
+        Build the command line, invoke ``journalctl`` and assemble the
+        result dict.
+
+        :returns: Result dict (``rc``, ``cmd``, ``stdout``, ``stdout_lines``,
+                  ``stderr``, ``changed``, optionally ``entries`` and
+                  ``cursor``).
+        """
+        self._reject_forbidden_args()
+
+        args: List[str] = self._build_args()
+        rc, out, err = self._exec(args)
+
+        out = out or ""
+        err = err or ""
+
+        result: Dict[str, Any] = dict(
+            rc=rc,
+            cmd=self._quote_cmd(args),
+            stdout=out,
+            stdout_lines=out.splitlines(),
+            stderr=err,
             changed=False,
         )
 
-        result = self.journalctl_lines()
+        if self.output in _JSON_FORMATS:
+            entries = self._parse_json_entries(out)
+            result["entries"] = entries
+            last_cursor = self._extract_cursor(entries)
+            if last_cursor:
+                result["cursor"] = last_cursor
+
+        if rc != 0:
+            self.module.fail_json(
+                msg=(
+                    f"journalctl exited with rc={rc}: "
+                    f"{(err.strip() or out.strip() or 'no diagnostic output')}"
+                ),
+                **result,
+            )
 
         return result
 
-    def journalctl_lines(self):
+    # -- internals -----------------------------------------------------------------------
+
+    @staticmethod
+    def _merge_scalar_and_list(
+        scalar: Optional[str],
+        plural: Optional[List[str]],
+    ) -> List[str]:
         """
-        journalctl --help
-        journalctl [OPTIONS...] [MATCHES...]
+        Merge a scalar and a list-valued variant of the same logical option.
 
-        Query the journal.
+        Order-preserving and de-duplicating.
+
+        :param scalar: Single value or ``None``.
+        :param plural: List of values or ``None``.
+        :returns: List of values.
         """
-        args = []
-        args.append(self._journalctl)
+        out: List[str] = []
+        seen: set = set()
+        if scalar:
+            out.append(scalar)
+            seen.add(scalar)
+        if plural:
+            for item in plural:
+                if item and item not in seen:
+                    out.append(item)
+                    seen.add(item)
+        return out
 
-        if self.unit:
-            args.append("--unit")
-            args.append(self.unit)
+    def _reject_forbidden_args(self) -> None:
+        """
+        Fail fast if the caller injects flags that would break the module
+        (``--follow`` would block the Ansible run indefinitely).
+        """
+        for arg in self.arguments:
+            if arg in _FORBIDDEN_EXTRA_ARGS:
+                self.module.fail_json(
+                    msg=f"Argument {arg!r} is not allowed in 'arguments'"
+                )
 
-        if self.identifier:
-            args.append("--identifier")
-            args.append(self.identifier)
+    def _build_args(self) -> List[str]:
+        """
+        Assemble the ``journalctl`` argument vector from instance state.
 
-        if self.lines:
-            args.append("--lines")
-            args.append(str(self.lines))
+        :returns: Argument vector suitable for :func:`run_command`.
+        """
+        args: List[str] = [self._journalctl]
+
+        if self.no_pager:
+            args.append("--no-pager")
+
+        for unit in self.units:
+            args += ["--unit", unit]
+
+        for ident in self.identifiers:
+            args += ["--identifier", ident]
+
+        if self.lines is not None:
+            args += ["--lines", str(self.lines)]
 
         if self.reverse:
             args.append("--reverse")
 
-        if len(self.arguments) > 0:
-            for arg in self.arguments:
-                args.append(arg)
+        if self.since:
+            args += ["--since", self.since]
 
-        rc, out, err = self._exec(args)
+        if self.until:
+            args += ["--until", self.until]
 
-        return dict(
-            rc=rc,
-            cmd=" ".join(args),
-            stdout=out,
-            stderr=err,
-        )
+        if self.priority:
+            args += ["--priority", self.priority]
 
-    def _exec(self, args):
-        """ """
+        if self.grep:
+            args += ["--grep", self.grep]
+
+        if self.boot:
+            args += ["--boot", self.boot]
+
+        if self.cursor:
+            args += ["--cursor", self.cursor]
+
+        if self.after_cursor:
+            args += ["--after-cursor", self.after_cursor]
+
+        if self.output:
+            args += ["--output", self.output]
+
+        args.extend(self.arguments)
+        return args
+
+    def _exec(self, args: List[str]) -> Tuple[int, str, str]:
+        """
+        Run ``journalctl`` and capture rc/stdout/stderr.
+
+        :param args: Argument vector.
+        :returns: Tuple ``(rc, stdout, stderr)``.
+        """
         rc, out, err = self.module.run_command(args, check_rc=False)
-
         if rc != 0:
-            self.module.log(msg=f"  rc : '{rc}'")
-            self.module.log(msg=f"  out: '{out}'")
-            self.module.log(msg=f"  err: '{err}'")
-
+            self.module.log(msg=f"journalctl rc={rc}")
+            if err:
+                self.module.log(msg=f"journalctl stderr: {err.strip()}")
         return rc, out, err
 
+    @staticmethod
+    def _quote_cmd(args: List[str]) -> str:
+        """
+        Shell-quote an argument vector for display purposes.
 
-def main():
-    """ """
-    args = dict(
-        identifier=dict(required=False, type="str"),
+        Equivalent to :func:`shlex.join` but works on Python < 3.8.
+
+        :param args: Argument vector.
+        :returns: Quoted command string.
+        """
+        return " ".join(shlex.quote(a) for a in args)
+
+    @staticmethod
+    def _parse_json_entries(out: str) -> List[Dict[str, Any]]:
+        """
+        Parse ``journalctl --output=json`` NDJSON stdout into a list.
+
+        Lines that fail to parse are skipped rather than aborting the task;
+        this keeps the module robust against stray non-JSON lines from
+        journald edge cases.
+
+        :param out: Raw stdout from ``journalctl``.
+        :returns: List of parsed entries.
+        """
+        entries: List[Dict[str, Any]] = []
+        for raw in out.splitlines():
+            line = raw.strip()
+            if not line or not line.startswith("{"):
+                continue
+            try:
+                entries.append(json.loads(line))
+            except (ValueError, TypeError):
+                continue
+        return entries
+
+    @staticmethod
+    def _extract_cursor(entries: List[Dict[str, Any]]) -> Optional[str]:
+        """
+        Return the ``__CURSOR`` of the chronologically last entry, if any.
+
+        Walks the list in reverse to honour ``--reverse`` callers cheaply.
+
+        :param entries: List of parsed JSON entries.
+        :returns: Cursor string or ``None``.
+        """
+        for entry in reversed(entries):
+            cursor = entry.get("__CURSOR")
+            if isinstance(cursor, str) and cursor:
+                return cursor
+        return None
+
+
+# ---------------------------------------------------------------------------------------
+
+
+def main() -> None:
+    """
+    Module entry point. Wires up the argument spec and delegates to
+    :class:`JournalCtl`.
+    """
+    argument_spec: Dict[str, Any] = dict(
         unit=dict(required=False, type="str"),
+        units=dict(required=False, type="list", elements="str"),
+        identifier=dict(required=False, type="str"),
+        identifiers=dict(required=False, type="list", elements="str"),
         lines=dict(required=False, type="int"),
-        reverse=dict(required=False, default=False, type="bool"),
-        arguments=dict(required=False, default=[], type=list),
+        reverse=dict(required=False, type="bool", default=False),
+        since=dict(required=False, type="str"),
+        until=dict(required=False, type="str"),
+        priority=dict(required=False, type="str"),
+        grep=dict(required=False, type="str"),
+        boot=dict(required=False, type="str"),
+        output=dict(
+            required=False,
+            type="str",
+            choices=[
+                "short",
+                "short-iso",
+                "short-iso-precise",
+                "short-precise",
+                "short-monotonic",
+                "short-unix",
+                "short-full",
+                "verbose",
+                "export",
+                "json",
+                "json-pretty",
+                "cat",
+            ],
+        ),
+        cursor=dict(required=False, type="str"),
+        after_cursor=dict(required=False, type="str"),
+        no_pager=dict(required=False, type="bool", default=True),
+        arguments=dict(required=False, type="list", elements="str", default=[]),
     )
 
     module = AnsibleModule(
-        argument_spec=args,
-        supports_check_mode=False,
+        argument_spec=argument_spec,
+        supports_check_mode=True,
     )
 
-    k = JournalCtl(module)
-    result = k.run()
-
-    # module.log(msg=f"= result: {result}")
-
+    worker = JournalCtl(module)
+    result = worker.run()
     module.exit_json(**result)
 
 
