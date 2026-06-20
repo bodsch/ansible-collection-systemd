@@ -8,7 +8,7 @@
   ansible.builtin.template:
     src: systemd/sleep.conf.j2
     dest: /etc/systemd/sleep.conf
-    mode: 0644
+    mode: "0644"
     owner: root
     group: root
 

@@ -19,12 +19,20 @@ on:
       - 'feature/**'
       - 'fix/**'
       - '!doc/**'
+    paths:
+      - "!Makefile"
+      - "!README.md"
+      - '!roles/*/*.md'
   pull_request:
     branches:
       - 'main'
       - 'feature/**'
       - 'fix/**'
       - '!doc/**'
+    paths:
+      - "!Makefile"
+      - "!README.md"
+      - '!roles/*/*.md'
 
 env:
   COLLECTION_NAMESPACE: bodsch
@@ -46,22 +54,22 @@ jobs:
         image:
           - archlinux:latest
         ansible:
-          - '8.5'
+          - '9.5'
         python:
-          - '3.11'
-          - '3.12'
+          - "3.12"
+          - "3.13"
         scenario:
           - default
 
     steps:
       - name: check out the codebase.
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
         with:
           path: 'ansible-collection-systemd'
           ref: ${{ github.event.workflow_run.head_branch }}
 
       - name: 🐍 set up python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: "${{ matrix.python }}"
 
