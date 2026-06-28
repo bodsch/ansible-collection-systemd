@@ -1,0 +1,229 @@
+---
+# Integration tests for bodsch.systemd.systemd_timer.
+#
+# Scope: pure file rendering. daemon_reload is disabled and enabled is left
+# unset so the tests need neither root, python3-dbus nor a running service
+# manager. Everything happens inside a temporary directory.
+
+- name: determine the current user (works as root or unprivileged)
+  ansible.builtin.command: id -un
+  register: current_user
+  changed_when: false
+
+- name: create a temporary working directory
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: systemd_timer
+  register: tmp_dir
+
+- vars:
+    base_path: "{{ tmp_dir.path }}"
+    me: "{{ current_user.stdout }}"
+  block:
+
+    # --- present: a unit file is rendered -----------------------------------
+    - name: create timer (present)
+      bodsch.systemd.systemd_timer:
+        name: integration
+        path: "{{ base_path }}"
+        owner: "{{ me }}"
+        group: "{{ me }}"
+        unit:
+          Description: Integration test timer
+        timer:
+          Persistent: true
+        schedule:
+          hour: 2
+          minute: 58
+        install:
+          WantedBy: timers.target
+        daemon_reload: false
+      register: create_result
+
+    - name: read back the rendered file
+      ansible.builtin.slurp:
+        src: "{{ base_path }}/integration.timer"
+      register: rendered
+
+    - name: assert the present run changed and rendered correctly
+      ansible.builtin.assert:
+        that:
+          - create_result is changed
+          - create_result.timer_path == base_path ~ "/integration.timer"
+          - create_result.on_calendar == ["*-*-* 02:58:00"]
+          - "'[Unit]' in content"
+          - "'Description = Integration test timer' in content"
+          - "'Persistent = true' in content"
+          - "'OnCalendar = *-*-* 02:58:00' in content"
+          - "'WantedBy = timers.target' in content"
+      vars:
+        content: "{{ rendered.content | b64decode }}"
+
+    # --- idempotency: an identical second run reports no change -------------
+    - name: create timer again (idempotent)
+      bodsch.systemd.systemd_timer:
+        name: integration
+        path: "{{ base_path }}"
+        owner: "{{ me }}"
+        group: "{{ me }}"
+        unit:
+          Description: Integration test timer
+        timer:
+          Persistent: true
+        schedule:
+          hour: 2
+          minute: 58
+        install:
+          WantedBy: timers.target
+        daemon_reload: false
+      register: repeat_result
+
+    - name: assert the second run did not change anything
+      ansible.builtin.assert:
+        that:
+          - repeat_result is not changed
+
+    # --- multiple schedules -> multiple OnCalendar entries ------------------
+    - name: timer with multiple schedules
+      bodsch.systemd.systemd_timer:
+        name: multi
+        path: "{{ base_path }}"
+        owner: "{{ me }}"
+        group: "{{ me }}"
+        schedules:
+          - hour: 2
+            minute: 58
+          - hour: 14
+            minute: 58
+        daemon_reload: false
+      register: multi_result
+
+    - name: assert both OnCalendar entries were generated
+      ansible.builtin.assert:
+        that:
+          - multi_result.on_calendar == ["*-*-* 02:58:00", "*-*-* 14:58:00"]
+
+    # --- an explicit timer.OnCalendar wins over schedule --------------------
+    - name: explicit OnCalendar overrides schedule
+      bodsch.systemd.systemd_timer:
+        name: explicit
+        path: "{{ base_path }}"
+        owner: "{{ me }}"
+        group: "{{ me }}"
+        timer:
+          OnCalendar: weekly
+        schedule:
+          hour: 9
+        daemon_reload: false
+
+    - name: read back the explicit timer
+      ansible.builtin.slurp:
+        src: "{{ base_path }}/explicit.timer"
+      register: explicit_rendered
+
+    - name: assert the explicit OnCalendar was kept
+      ansible.builtin.assert:
+        that:
+          - "'OnCalendar = weekly' in (explicit_rendered.content | b64decode)"
+
+    # --- check mode renders nothing -----------------------------------------
+    - name: would-create a timer in check mode
+      bodsch.systemd.systemd_timer:
+        name: checkmode
+        path: "{{ base_path }}"
+        owner: "{{ me }}"
+        group: "{{ me }}"
+        schedule:
+          hour: 1
+        daemon_reload: false
+      check_mode: true
+      register: check_result
+
+    - name: stat the would-be check-mode file
+      ansible.builtin.stat:
+        path: "{{ base_path }}/checkmode.timer"
+      register: check_stat
+
+    - name: assert check mode reported a change but wrote nothing
+      ansible.builtin.assert:
+        that:
+          - check_result is changed
+          - not check_stat.stat.exists
+
+    # --- an invalid timespan is rejected ------------------------------------
+    - name: invalid timespan must fail
+      bodsch.systemd.systemd_timer:
+        name: bad
+        path: "{{ base_path }}"
+        owner: "{{ me }}"
+        group: "{{ me }}"
+        timer:
+          RandomizedDelaySec: not-a-timespan
+        schedule:
+          hour: 1
+        daemon_reload: false
+      register: bad_result
+      ignore_errors: true
+
+    - name: assert the invalid timespan was rejected cleanly
+      ansible.builtin.assert:
+        that:
+          - bad_result is failed
+          - "'Invalid timespan' in bad_result.msg"
+
+    # --- required_if: scope=user requires user ------------------------------
+    - name: scope=user without user must fail
+      bodsch.systemd.systemd_timer:
+        name: needsuser
+        scope: user
+        path: "{{ base_path }}"
+        schedule:
+          hour: 1
+        daemon_reload: false
+      register: missing_user
+      ignore_errors: true
+
+    - name: assert required_if triggered
+      ansible.builtin.assert:
+        that:
+          - missing_user is failed
+          - "'user' in missing_user.msg"
+
+    # --- absent: the file is removed (no manager interaction) ---------------
+    - name: remove timer (absent)
+      bodsch.systemd.systemd_timer:
+        name: integration
+        path: "{{ base_path }}"
+        state: absent
+        daemon_reload: false
+      register: remove_result
+
+    - name: stat the removed file
+      ansible.builtin.stat:
+        path: "{{ base_path }}/integration.timer"
+      register: removed_stat
+
+    - name: assert absent removed the file
+      ansible.builtin.assert:
+        that:
+          - remove_result is changed
+          - not removed_stat.stat.exists
+
+    - name: remove timer again (idempotent absent)
+      bodsch.systemd.systemd_timer:
+        name: integration
+        path: "{{ base_path }}"
+        state: absent
+        daemon_reload: false
+      register: remove_again
+
+    - name: assert the second absent run did not change
+      ansible.builtin.assert:
+        that:
+          - remove_again is not changed
+
+  always:
+    - name: clean up the temporary directory
+      ansible.builtin.file:
+        path: "{{ tmp_dir.path }}"
+        state: absent

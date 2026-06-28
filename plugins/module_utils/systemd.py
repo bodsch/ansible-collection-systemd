@@ -80,6 +80,7 @@ def _map_dbus_error(e: DBusException, ctx: str = "") -> SystemdError:
     if name in (
         "org.freedesktop.systemd1.NoSuchUnit",
         "org.freedesktop.DBus.Error.UnknownObject",
+        "org.freedesktop.DBus.Error.FileNotFound",
     ):
         return UnitNotFoundError(msg)
 

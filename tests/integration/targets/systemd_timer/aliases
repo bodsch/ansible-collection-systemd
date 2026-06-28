@@ -1,0 +1,7 @@
+# Integration tests for the bodsch.systemd.systemd_timer module.
+#
+# These tests only exercise the file-rendering behaviour (present / idempotency
+# / check mode / absent / validation). They do NOT require root, python3-dbus or
+# a running service manager, because daemon_reload is disabled and enabled is
+# left unset throughout.
+shippable/posix/group1
