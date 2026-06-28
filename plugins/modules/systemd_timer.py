@@ -9,7 +9,9 @@ from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
 
+import grp
 import os
+import pwd
 from typing import Any, Dict, List, Optional, Tuple
 
 from ansible.module_utils.basic import AnsibleModule
@@ -42,17 +44,41 @@ options:
       - The file is written to I(path)/<name>.timer.
     type: str
     required: true
+  description:
+    description:
+      - Convenience shortcut for the C(Description) key of the [Unit] section.
+      - Only applied when C(unit.Description) is not set explicitly.
+    type: str
   state:
     description:
       - Whether the timer unit file should be present.
     type: str
     choices: [present, absent]
     default: present
+  scope:
+    description:
+      - Defines whether a system-wide or a per-user timer unit is managed.
+      - C(system) writes the unit into the system manager directory (see I(path)).
+      - C(user) writes the unit into the C(.config/systemd/user) directory of the
+        user given in I(user), owned by that user.
+    type: str
+    choices: [system, user]
+    default: system
+  user:
+    description:
+      - Target user when I(scope=user).
+      - The .timer file is written to C(~<user>/.config/systemd/user/<name>.timer)
+        and the file (including any directories created below the user's home) is
+        owned by this user.
+      - Required when I(scope=user), ignored when I(scope=system).
+    type: str
   path:
     description:
       - Base directory for the .timer file.
+      - When unset, defaults to C(/lib/systemd/system) for I(scope=system) and to
+        C(~<user>/.config/systemd/user) for I(scope=user).
+      - When set explicitly, it overrides the scope-based default.
     type: str
-    default: /lib/systemd/system
   unit:
     description:
       - Options for the [Unit] section as a key/value mapping.
@@ -63,6 +89,13 @@ options:
       - Options for the [Timer] section as a key/value mapping.
       - If C(OnCalendar) is set here, it overrides schedule/schedules.
     type: dict
+  timer_validation:
+    description:
+      - Whether timespan-like [Timer] options are validated via
+        C(systemd-analyze timespan).
+      - When C(false), timespans are only checked for being non-empty.
+    type: bool
+    default: true
   install:
     description:
       - Options for the [Install] section as a key/value mapping.
@@ -119,22 +152,26 @@ options:
     description:
       - Whether the timer should be enabled or disabled using C(systemctl enable/disable).
       - C(null) means the enable state is not changed.
+      - For I(scope=user) the target user's service manager is used
+        (C(systemctl --user --machine=<user>@.host)), which must be running.
     type: bool
   daemon_reload:
     description:
-      - Whether to run C(systemctl daemon-reload) after changing the file.
+      - Whether to run C(systemctl daemon-reload) after the unit file has changed.
+      - For I(scope=user) the reload is issued against the target user's service manager.
     type: bool
     default: true
   owner:
     description:
       - Owner of the .timer file.
+      - When unset, defaults to C(root) for I(scope=system) and to I(user) for I(scope=user).
     type: str
-    default: root
   group:
     description:
       - Group of the .timer file.
+      - When unset, defaults to C(root) for I(scope=system) and to the primary group
+        of I(user) for I(scope=user).
     type: str
-    default: root
   mode:
     description:
       - File mode of the .timer file.
@@ -200,11 +237,33 @@ EXAMPLES = r"""
     install:
       WantedBy: timers.target
 
+- name: Per-user timer for backups in alice's ~/.config/systemd/user
+  systemd_timer:
+    name: backup
+    scope: user
+    user: alice
+    unit:
+      Description: Run user backup every morning
+    timer:
+      Persistent: true
+    schedule:
+      hour: 7
+      minute: 0
+    install:
+      WantedBy: timers.target
+
 - name: Remove timer
   systemd_timer:
     name: certbot
     state: absent
     enabled: false
+
+- name: Remove a per-user timer
+  systemd_timer:
+    name: backup
+    scope: user
+    user: alice
+    state: absent
 """
 
 RETURN = r"""
@@ -218,6 +277,10 @@ on_calendar:
   type: list
   sample:
     - Mon,Thu *-*-* 02:58:00
+enabled:
+  description: The requested enable state, only present when I(enabled) was set.
+  returned: when enabled is not null
+  type: bool
 changed:
   description: Whether anything changed.
   returned: always
@@ -239,8 +302,10 @@ class SystemdTimer:
         self.name: str = module.params.get("name")
         self.state: str = module.params.get("state")
         self.enabled: Optional[bool] = module.params.get("enabled")
+        self.daemon_reload: bool = module.params.get("daemon_reload")
         self.description: str = module.params.get("description")
-        self.base_path: str = module.params.get("path")
+        self.scope: str = module.params.get("scope")
+        self.user: Optional[str] = module.params.get("user")
 
         self.unit_options: Dict[str, Any] = module.params.get("unit")
         self.timer_options: Dict[str, Any] = module.params.get("timer")
@@ -252,11 +317,294 @@ class SystemdTimer:
             "schedules"
         )
 
-        self.owner: str = module.params.get("owner")
-        self.group: str = module.params.get("group")
         self.mode: str = module.params.get("mode")
 
+        # Lazily created D-Bus client for the system manager (system scope only).
+        self._sd_client = None
+
+        # Resolve base path, owner and group depending on the scope.
+        # Explicitly provided values always win over the scope-based defaults.
+        self.base_path, self.owner, self.group = self.resolve_scope(
+            scope=self.scope,
+            user=self.user,
+            path=module.params.get("path"),
+            owner=module.params.get("owner"),
+            group=module.params.get("group"),
+        )
+
+    def resolve_scope(
+        self,
+        scope: str,
+        user: Optional[str],
+        path: Optional[str],
+        owner: Optional[str],
+        group: Optional[str],
+    ) -> Tuple[str, str, str]:
+        """
+        Resolve the effective base directory, owner and group for the unit file.
+
+        For ``scope == "user"`` the target user is looked up in the password
+        database to derive the home directory and the primary group. The unit is
+        placed below ``~<user>/.config/systemd/user`` unless an explicit I(path)
+        is given. Explicitly provided owner/group/path values always take
+        precedence over the scope-based defaults.
+
+        Returns:
+            A tuple of (base_path, owner, group).
+        """
+        self.module.log(
+            f"SystemdTimer::resolve_scope(scope={scope}, user={user}, "
+            f"path={path}, owner={owner}, group={group})"
+        )
+
+        if scope == "user":
+            try:
+                pw = pwd.getpwnam(user)
+            except KeyError:
+                self.module.fail_json(
+                    msg=f"scope=user requires an existing user, but '{user}' was not found."
+                )
+
+            try:
+                primary_group = grp.getgrgid(pw.pw_gid).gr_name
+            except KeyError:
+                # Fall back to the gid as string if the group is not resolvable.
+                primary_group = str(pw.pw_gid)
+
+            base_path = path or os.path.join(pw.pw_dir, ".config", "systemd", "user")
+            owner = owner or user
+            group = group or primary_group
+        else:
+            base_path = path or "/lib/systemd/system"
+            owner = owner or "root"
+            group = group or "root"
+
+        return base_path, owner, group
+
+    def ensure_directory(self, directory: str, owner: str, group: str) -> None:
+        """
+        Create ``directory`` (including missing parents) and apply owner/group to
+        every directory that had to be created.
+
+        Existing directories are left untouched. This keeps the system scope
+        behaviour unchanged (the target directory already exists) while making
+        sure that directories created below a user's home (e.g. ``.config`` or
+        ``.config/systemd``) are owned by the user instead of root.
+        """
+        to_create: List[str] = []
+        current = directory
+
+        while current and not os.path.isdir(current):
+            to_create.append(current)
+            parent = os.path.dirname(current)
+            if parent == current:
+                break
+            current = parent
+
+        # Create from the top-most missing parent downwards.
+        for new_dir in reversed(to_create):
+            os.makedirs(new_dir, exist_ok=True)
+            self.module.set_owner_if_different(new_dir, owner, False)
+            self.module.set_group_if_different(new_dir, group, False)
+            self.module.set_mode_if_different(new_dir, "0755", False)
+
+    def _systemctl(self, args: List[str]) -> Tuple[int, str, str]:
+        """
+        Run ``systemctl`` via the CLI for I(scope=user).
+
+        The call is routed to the target user's service manager via
+        ``--user --machine=<user>@.host`` so that an arbitrary user's units can
+        be managed even when the module itself runs as root. This requires the
+        target user's systemd instance to be running (an active session or
+        C(loginctl enable-linger <user>)).
+
+        For I(scope=system) the D-Bus :class:`SystemdClient` helper is used
+        instead (see :meth:`_system_client`), therefore this is only reached for
+        the user scope.
+
+        Returns:
+            A tuple of (rc, stdout, stderr).
+        """
+        cmd = [self.module.get_bin_path("systemctl", required=True)]
+
+        if self.scope == "user":
+            cmd += ["--user", f"--machine={self.user}@.host"]
+
+        cmd += list(args)
+
+        self.module.log(f"SystemdTimer::_systemctl(cmd={cmd})")
+
+        return self.module.run_command(cmd, check_rc=False)
+
+    def _load_systemd(self):
+        """
+        Import the D-Bus helper classes lazily.
+
+        The import is deferred so that the pure file-rendering use of this
+        module does not require ``python3-dbus`` to be installed; the dependency
+        only matters when daemon-reload / enable / disable is requested for
+        I(scope=system). Fails cleanly when the library is unavailable.
+
+        Returns:
+            A tuple of (SystemdClient, SystemdError, UnitNotFoundError).
+        """
+        try:
+            from ansible_collections.bodsch.systemd.plugins.module_utils.systemd import (
+                SystemdClient,
+                SystemdError,
+                UnitNotFoundError,
+            )
+        except ImportError as e:
+            self.module.fail_json(
+                msg="The python3-dbus library is required to manage system units "
+                f"via D-Bus (enabled / daemon_reload with scope=system): {e}"
+            )
+
+        return SystemdClient, SystemdError, UnitNotFoundError
+
+    def _system_client(self, systemd_client_cls):
+        """
+        Lazily create and cache a D-Bus client bound to the system manager.
+        """
+        if self._sd_client is None:
+            try:
+                self._sd_client = systemd_client_cls(user_manager=False)
+            except Exception as e:
+                self.module.fail_json(
+                    msg=f"could not connect to the system manager via D-Bus: {e}"
+                )
+
+        return self._sd_client
+
+    def _close_client(self) -> None:
+        """Close a previously opened D-Bus client, if any."""
+        if self._sd_client is not None:
+            try:
+                self._sd_client.close()
+            except Exception:
+                pass
+            self._sd_client = None
+
+    def systemd_daemon_reload(self) -> None:
+        """
+        Trigger a daemon-reload for the configured scope.
+
+        I(scope=system) uses the D-Bus helper, I(scope=user) the CLI routed to
+        the target user's manager. On failure the module fails.
+        """
+        if self.scope == "user":
+            rc, out, err = self._systemctl(["daemon-reload"])
+            if rc != 0:
+                self.module.fail_json(
+                    msg=f"systemctl daemon-reload failed (scope=user): "
+                    f"{(err or out).strip()}"
+                )
+            return
+
+        systemd_client_cls, systemd_error, _ = self._load_systemd()
+        client = self._system_client(systemd_client_cls)
+        try:
+            client.daemon_reload()
+        except systemd_error as e:
+            self.module.fail_json(msg=f"daemon-reload failed (scope=system): {e}")
+
+    def unit_enabled_state(self, unit: str) -> str:
+        """
+        Return the install state of a unit (e.g. C(enabled), C(disabled),
+        C(static), C(masked), C(not-found)).
+
+        For I(scope=system) the state is queried via the D-Bus helper
+        (``GetUnitFileState``); for I(scope=user) via ``systemctl is-enabled``,
+        whose non-zero exit for several normal states (e.g. C(disabled)) is
+        ignored - only the textual state is evaluated.
+        """
+        if self.scope == "user":
+            _rc, out, _err = self._systemctl(["is-enabled", unit])
+            return (out or "").strip()
+
+        systemd_client_cls, systemd_error, unit_not_found = self._load_systemd()
+        client = self._system_client(systemd_client_cls)
+        try:
+            return client.get_unit_file_state(unit)
+        except unit_not_found:
+            return "not-found"
+        except systemd_error as e:
+            self.module.fail_json(
+                msg=f"querying enable state of {unit} failed (scope=system): {e}"
+            )
+
+    def _set_unit_enabled(self, unit: str, enable: bool) -> Optional[str]:
+        """
+        Enable or disable ``unit`` using the transport for the configured scope.
+
+        Returns:
+            None on success, otherwise an error message string.
+        """
+        action = "enable" if enable else "disable"
+
+        if self.scope == "user":
+            rc, out, err = self._systemctl([action, unit])
+            return None if rc == 0 else (err or out).strip()
+
+        systemd_client_cls, systemd_error, _ = self._load_systemd()
+        client = self._system_client(systemd_client_cls)
+        try:
+            if enable:
+                client.enable([unit])
+            else:
+                client.disable([unit])
+            return None
+        except systemd_error as e:
+            return str(e)
+
+    def apply_enabled(self, unit: str, want_enabled: bool) -> bool:
+        """
+        Ensure ``unit`` is enabled or disabled according to I(want_enabled).
+
+        Returns:
+            True if a change was made (or would be made in check mode),
+            otherwise False.
+        """
+        state = self.unit_enabled_state(unit)
+        enabled_now = state in ("enabled", "enabled-runtime", "alias")
+
+        if want_enabled:
+            # static/indirect/generated units carry no install information and
+            # cannot be enabled; treat them as already in the desired state.
+            if enabled_now or state in ("static", "indirect", "generated"):
+                return False
+            if self.module.check_mode:
+                return True
+            err = self._set_unit_enabled(unit, True)
+            if err:
+                self.module.fail_json(
+                    msg=f"enabling {unit} failed (scope={self.scope}): {err}"
+                )
+            return True
+
+        # want_enabled is False -> disable if currently enabled
+        if not enabled_now:
+            return False
+        if self.module.check_mode:
+            return True
+        err = self._set_unit_enabled(unit, False)
+        if err:
+            self.module.fail_json(
+                msg=f"disabling {unit} failed (scope={self.scope}): {err}"
+            )
+        return True
+
     def run(self):
+        """
+        Public entry point. Wraps :meth:`_run` to guarantee the D-Bus client is
+        closed regardless of how the run terminates.
+        """
+        try:
+            return self._run()
+        finally:
+            self._close_client()
+
+    def _run(self):
         """ """
         self.module.log("SystemdTimer::run()")
 
@@ -268,19 +616,51 @@ class SystemdTimer:
             "on_calendar": [],
         }
 
-        # Absent: Datei löschen, optional disable
+        unit_name = f"{self.name}.timer"
+
+        # Absent: optional disable, Datei löschen, daemon-reload
         if self.state == "absent":
+            # Only talk to the service manager when the caller opted into enable
+            # management via enabled=false: then the unit is disabled before the
+            # file is removed so its install symlinks are cleaned up while the
+            # unit is still known. A plain "state: absent" never touches the
+            # manager for this step (best effort - the user manager may not be
+            # reachable).
+            if (
+                self.enabled is False
+                and not self.module.check_mode
+                and os.path.exists(timer_path)
+            ):
+                state = self.unit_enabled_state(unit_name)
+                if state in ("enabled", "enabled-runtime", "alias"):
+                    err = self._set_unit_enabled(unit_name, False)
+                    if err:
+                        self.module.warn(
+                            f"Could not disable {unit_name} (scope={self.scope}): {err}"
+                        )
+
             changed = self.remove_file(timer_path)
             result["changed"] = changed
+
+            if self.daemon_reload and changed and not self.module.check_mode:
+                self.systemd_daemon_reload()
 
             return result
 
         # state == present: Datei erzeugen/aktualisieren
-        validator = SystemdValidator(module=self.module)
+        validator = SystemdValidator(
+            module=self.module,
+            validate_timespans=self.timer_validation,
+        )
 
-        unit_options = validator.validate_unit_options(self.unit_options)
-        timer_options = validator.validate_timer_options(self.timer_options)
-        install_options = validator.validate_install_options(self.install_options)
+        unit_options = validator.validate_unit_options(self.unit_options or {})
+        timer_options = validator.validate_timer_options(self.timer_options or {})
+        install_options = validator.validate_install_options(self.install_options or {})
+
+        # Convenience: map the top-level "description" to [Unit] Description
+        # unless it was already provided via unit.Description.
+        if self.description and "Description" not in unit_options:
+            unit_options["Description"] = self.description
 
         # schedule / schedules -> OnCalendar
         on_calendar_values: List[str] = []
@@ -298,7 +678,7 @@ class SystemdTimer:
                     on_calendar_values.append(spec)
 
         # Nur setzen, wenn nicht explizit über timer.OnCalendar überschrieben
-        if on_calendar_values and "OnCalendar" not in self.timer_options:
+        if on_calendar_values and "OnCalendar" not in timer_options:
             if len(on_calendar_values) == 1:
                 timer_options["OnCalendar"] = on_calendar_values[0]
             else:
@@ -327,6 +707,16 @@ class SystemdTimer:
         )
         result["changed"] = changed
         result["diff"] = diff
+
+        # daemon-reload only when the unit file actually changed
+        if self.daemon_reload and changed and not self.module.check_mode:
+            self.systemd_daemon_reload()
+
+        # enable / disable the timer if requested (enabled=None -> leave as is)
+        if self.enabled is not None:
+            enabled_changed = self.apply_enabled(unit_name, self.enabled)
+            result["changed"] = result["changed"] or enabled_changed
+            result["enabled"] = self.enabled
 
         return result
 
@@ -432,7 +822,7 @@ class SystemdTimer:
             changed = True
 
             if not self.module.check_mode:
-                os.makedirs(os.path.dirname(path), exist_ok=True)
+                self.ensure_directory(os.path.dirname(path), owner, group)
 
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(content)
@@ -478,21 +868,27 @@ def main():
         description=dict(type="str", required=False),
         state=dict(type="str", default="present", choices=["present", "absent"]),
         enabled=dict(type="bool", default=None),
-        path=dict(type="str", default="/lib/systemd/system"),
+        daemon_reload=dict(type="bool", default=True),
+        scope=dict(type="str", default="system", choices=["system", "user"]),
+        user=dict(type="str", required=False, default=None),
+        path=dict(type="str", default=None),
         unit=dict(type="dict", default=None),
         timer=dict(type="dict", default=None),
         timer_validation=dict(type="bool", default=True),
         install=dict(type="dict", default=None),
         schedule=dict(type="dict", default=None),
         schedules=dict(type="list", elements="dict", default=None),
-        owner=dict(type="str", default="root"),
-        group=dict(type="str", default="root"),
+        owner=dict(type="str", default=None),
+        group=dict(type="str", default=None),
         mode=dict(type="str", default="0644"),
     )
 
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
+        required_if=[
+            ("scope", "user", ("user",)),
+        ],
     )
 
     t = SystemdTimer(module)

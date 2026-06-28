@@ -331,7 +331,8 @@ class SystemdValidator:
         If a module with fail_json() is available, fail_json() is called, otherwise
         a ValueError is raised.
         """
-        self._log(f"ERROR: {msg} ({kwargs})")
+        if self.module is not None and hasattr(self.module, "log"):
+            self.module.log(f"ERROR: {msg} ({kwargs})")
         if self.module is not None and hasattr(self.module, "fail_json"):
             self.module.fail_json(msg=msg, **kwargs)
         raise ValueError(f"{msg}: {kwargs}")

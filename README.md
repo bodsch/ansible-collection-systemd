@@ -37,7 +37,7 @@ Documentation for the collection.
 |:--------------------------|:----|
 | [bodsch.systemd.journalctl](./plugins/modules/journalctl.py)               | Query the systemd journal with a very limited number of possible parameters |
 | [bodsch.systemd.unit_file](./plugins/modules/unit_file.py)                 | This can be used to create a systemd unit file. The `service`, `timer` and `socket` types are supported. |
-| [bodsch.systemd.systemd_timer](./plugins/modules/systemd_timer.py)         | This can be used to create a systemd timer file. |
+| [bodsch.systemd.systemd_timer](./plugins/modules/systemd_timer.py)         | This can be used to create a systemd timer file, for the system or for a specific user, and optionally enable it / reload the manager. |
 | [bodsch.systemd.networkd_profiles](./plugins/modules/networkd_profiles.py) | Manages a whole set of systemd-networkd profile files. (`.link` / `.netdev` / `.network`) |
 
 
@@ -70,6 +70,22 @@ be manually installed using pip:
 ```sh
 #> pip install -r requirements.txt
 ```
+
+> [!IMPORTANT]
+> The `bodsch.systemd.systemd_timer` module talks to the **system** service
+> manager over D-Bus when `enabled` or `daemon_reload` is used with
+> `scope: system`. This requires the **`python3-dbus`** library (the `dbus`
+> Python bindings) to be present on the target host. It is best installed via
+> the distribution package rather than pip:
+>
+> ```sh
+> #> apt-get install python3-dbus     # Debian / Ubuntu
+> #> dnf install python3-dbus         # Fedora / RHEL
+> #> pacman -S python-dbus            # Arch Linux
+> ```
+>
+> Pure file rendering (creating the `.timer` file without `enabled` /
+> `daemon_reload`) does **not** require `python3-dbus`.
 
 ## Using this collection
 
@@ -155,6 +171,74 @@ bodsch.systemd.systemd_timer:
 notify:
   - daemon reload
 ```
+
+The module can optionally enable the timer and reload the service manager.
+`enabled: true`/`false` runs the equivalent of `systemctl enable`/`disable`,
+and `daemon_reload` (default `true`) reloads the manager after the unit file
+changed:
+
+```yaml
+name: create and enable a systemd timer file
+bodsch.systemd.systemd_timer:
+  name: certbot-renew
+  unit:
+    Description: Run Certbot on specific weekdays
+  timer:
+    persistent: true
+  schedule:
+    weekday: [Sat]
+    hour: 2
+    minute: 58
+  install:
+    wanted_by: timers.target
+  enabled: true
+  daemon_reload: true
+```
+
+A timer unit can also be created for a specific user. With `scope: user` the
+file is written to `~<user>/.config/systemd/user/<name>.timer` and is owned by
+that user (any directories created below the home directory are owned by the
+user as well):
+
+```yaml
+name: create, enable a per-user systemd timer file
+bodsch.systemd.systemd_timer:
+  name: backup
+  scope: user
+  user: alice
+  unit:
+    Description: Run user backup every morning
+  timer:
+    persistent: true
+  schedule:
+    hour: 7
+    minute: 0
+  install:
+    wanted_by: timers.target
+  enabled: true
+```
+
+#### Requirements for `enabled` / `daemon_reload`
+
+These two options interact with the running service manager and therefore have
+additional requirements depending on the scope:
+
+* **`scope: system`** — communicates with the system manager over **D-Bus** and
+  requires the **`python3-dbus`** library on the target host (see
+  [Installing this collection](#installing-this-collection)). Creating the
+  `.timer` file without `enabled`/`daemon_reload` does not need it.
+* **`scope: user`** — the operations are routed to the target user's manager via
+  `systemctl --user --machine=<user>@.host`, which requires that user's systemd
+  instance to be running. Either an active login session must exist or lingering
+  has to be enabled once with:
+
+  ```sh
+  #> loginctl enable-linger <user>
+  ```
+
+If you only want to render the unit file and handle reloading/enabling
+elsewhere (e.g. via a handler), set `daemon_reload: false` and leave `enabled`
+unset — then neither requirement applies.
 
 
 
@@ -274,7 +358,7 @@ If you want to use something stable, please use a [Tagged Version](https://githu
 
 ## Author
 
-- Bodo Schulz
+* Bodo Schulz
 
 ## License
 

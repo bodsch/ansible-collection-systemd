@@ -1,0 +1,112 @@
+---
+
+name: systemd_timer module
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'main'
+      - 'feature/**'
+      - 'fix/**'
+      - '!doc/**'
+    paths:
+      - 'plugins/modules/systemd_timer.py'
+      - 'plugins/module_utils/**'
+      - 'tests/**'
+      - '.github/workflows/systemd_timer.yml'
+
+  pull_request:
+    branches:
+      - 'main'
+      - 'feature/**'
+      - 'fix/**'
+      - '!doc/**'
+    paths:
+      - 'plugins/modules/systemd_timer.py'
+      - 'plugins/module_utils/**'
+      - 'tests/**'
+      - '.github/workflows/systemd_timer.yml'
+
+env:
+  COLLECTION_NAMESPACE: bodsch
+  COLLECTION_NAME: systemd
+  PY_COLORS: '1'
+  ANSIBLE_FORCE_COLOR: '1'
+
+jobs:
+  units:
+    name: "units / python ${{ matrix.python_version }}"
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python_version:
+          - "3.12"
+          - "3.13"
+
+    steps:
+      # ansible-test requires the checkout to live at
+      # <something>/ansible_collections/<namespace>/<name>/
+      - name: check out the codebase into a collection layout
+        uses: actions/checkout@v6.0.2
+        with:
+          path: ansible_collections/bodsch/systemd
+
+      - name: 🐍 set up python
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "${{ matrix.python_version }}"
+
+      - name: install ansible-core
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ansible-core
+
+      - name: ansible-test units
+        working-directory: ansible_collections/bodsch/systemd
+        run: |
+          ansible-test units \
+            --local \
+            --requirements \
+            --python "${{ matrix.python_version }}"
+
+  integration:
+    name: "integration / python ${{ matrix.python_version }}"
+    runs-on: ubuntu-24.04
+    needs:
+      - units
+    strategy:
+      fail-fast: false
+      matrix:
+        python_version:
+          - "3.12"
+          - "3.13"
+
+    steps:
+      - name: check out the codebase into a collection layout
+        uses: actions/checkout@v6.0.2
+        with:
+          path: ansible_collections/bodsch/systemd
+
+      - name: 🐍 set up python
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "${{ matrix.python_version }}"
+
+      - name: install ansible-core
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ansible-core
+
+      # The systemd_timer integration target is hermetic: it renders unit files
+      # into a temporary directory with daemon_reload=false and without enabled,
+      # so it needs neither root, python3-dbus nor a running service manager.
+      - name: ansible-test integration (systemd_timer)
+        working-directory: ansible_collections/bodsch/systemd
+        run: |
+          ansible-test integration \
+            --local \
+            --requirements \
+            --python "${{ matrix.python_version }}" \
+            systemd_timer
