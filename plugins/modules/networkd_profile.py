@@ -14,7 +14,7 @@ temporary file so the ``changed`` flag is only set when the on-disk content
 actually differs.
 """
 
-from __future__ import absolute_import, division, print_function
+from __future__ import annotations
 
 import os
 import shutil
@@ -25,8 +25,6 @@ from ansible_collections.bodsch.core.plugins.module_utils.checksum import Checks
 from ansible_collections.bodsch.core.plugins.module_utils.directory import (
     create_directory,
 )
-
-__metaclass__ = type
 
 # ---------------------------------------------------------------------------------------
 

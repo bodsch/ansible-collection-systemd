@@ -5,7 +5,7 @@
 # Apache-2.0 (see LICENSE or https://opensource.org/license/apache-2-0)
 # SPDX-License-Identifier: Apache-2.0
 
-from __future__ import absolute_import, division, print_function
+from __future__ import annotations
 
 import os
 import shutil

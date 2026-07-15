@@ -18,7 +18,7 @@ performs ``networkctl reload`` and rolls back only the offending profiles on
 failure.
 """
 
-from __future__ import absolute_import, division, print_function
+from __future__ import annotations
 
 import os
 import shutil
@@ -33,8 +33,6 @@ from ansible_collections.bodsch.core.plugins.module_utils.directory import (
 
 from ansible_collections.bodsch.systemd.plugins.module_utils.networkd.renderer import NetworkdRenderer
 from ansible_collections.bodsch.systemd.plugins.module_utils.networkd.validator import NetworkdValidator
-
-__metaclass__ = type
 
 # ---------------------------------------------------------------------------------------
 

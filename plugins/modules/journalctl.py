@@ -13,15 +13,13 @@ and identifier filtering, time/priority/grep filters, cursor-based
 pagination, JSON parsing and pass-through of arbitrary extra arguments.
 """
 
-from __future__ import absolute_import, division, print_function
+from __future__ import annotations
 
 import json
 import shlex
 from typing import Any, Dict, List, Optional, Tuple
 
 from ansible.module_utils.basic import AnsibleModule
-
-__metaclass__ = type
 
 # ---------------------------------------------------------------------------------------
 
