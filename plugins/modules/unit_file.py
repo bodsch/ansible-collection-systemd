@@ -7,14 +7,14 @@
 
 from __future__ import annotations
 
+import grp
 import os
+import pwd
 import shutil
+import tempfile
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.bodsch.core.plugins.module_utils.checksum import Checksum
-from ansible_collections.bodsch.core.plugins.module_utils.directory import (
-    create_directory,
-)
 
 # ---------------------------------------------------------------------------------------
 
@@ -30,6 +30,38 @@ description:
   - The `service`, `timer` and `socket` types are supported.
 
 options:
+  scope:
+    description:
+      - Defines whether a system-wide or a per-user unit is managed.
+      - C(user) writes the unit into the C(.config/systemd/user) directory of the
+        user given in I(user), owned by that user.
+    type: str
+    choices: [ system, user ]
+    default: system
+  user:
+    description:
+      - Target user when I(scope=user).
+      - Required when I(scope=user), ignored when I(scope=system).
+    type: str
+  path:
+    description:
+      - Base directory for the unit file.
+      - Defaults to C(/lib/systemd/system) for I(scope=system) and to
+        C(~<user>/.config/systemd/user) for I(scope=user).
+      - When set explicitly, it overrides the scope-based default for units
+        and drop-ins.
+    type: str
+  owner:
+    description:
+      - Owner of the unit and drop-in files.
+      - Defaults to C(root) for I(scope=system) and to I(user) for I(scope=user).
+    type: str
+  group:
+    description:
+      - Group of the unit and drop-in files.
+      - Defaults to C(root) for I(scope=system) and to the primary group of I(user)
+        for I(scope=user).
+    type: str
   unit_type:
     description:
       - The unit type to be created.
@@ -156,6 +188,19 @@ EXAMPLES = """
         OnUnitActiveSec: 1d
   when:
     - ansible_service_mgr == 'systemd'
+
+- name: create a per-user systemd unit
+  bodsch.systemd.unit_file:
+    name: "backup"
+    scope: user
+    user: alice
+    unit_type: service
+    unit_file:
+      Unit:
+        Description: User backup service
+      Service:
+        Type: oneshot
+        ExecStart: /usr/local/bin/backup
 """
 
 RETURN = """
@@ -208,51 +253,118 @@ class SystemdUnitFile(object):
         self.overwrite = module.params.get("overwrite")
         self.drop_ins = module.params.get("drop_ins")
         self.unit_file = module.params.get("unit_file")
-
-        self.tmp_directory = os.path.join(
-            "/run/.ansible", f"systemd_unit.{str(os.getpid())}"
+        self.scope = module.params.get("scope")
+        self.user = module.params.get("user")
+        self.base_path, self.owner, self.group = self.resolve_scope(
+            scope=self.scope,
+            user=self.user,
+            path=module.params.get("path"),
+            owner=module.params.get("owner"),
+            group=module.params.get("group"),
         )
+        self.drop_in_base_path = (
+            self.base_path
+            if self.scope == "user" or module.params.get("path")
+            else "/etc/systemd/system"
+        )
+
+        self.tmp_directory = None
+
+    def resolve_scope(self, scope, user, path, owner, group):
+        """Resolve the base directory and ownership for the selected scope."""
+        self.module.log(
+            f"SystemdUnitFile::resolve_scope(scope={scope}, user={user}, "
+            f"path={path}, owner={owner}, group={group})"
+        )
+
+        if scope == "user":
+            try:
+                pw = pwd.getpwnam(user)
+            except KeyError:
+                self.module.fail_json(
+                    msg=f"scope=user requires an existing user, but '{user}' was not found."
+                )
+
+            try:
+                primary_group = grp.getgrgid(pw.pw_gid).gr_name
+            except KeyError:
+                primary_group = str(pw.pw_gid)
+
+            base_path = path or os.path.join(pw.pw_dir, ".config", "systemd", "user")
+            owner = owner or user
+            group = group or primary_group
+        else:
+            base_path = path or "/lib/systemd/system"
+            owner = owner or "root"
+            group = group or "root"
+
+        return base_path, owner, group
+
+    def ensure_directory(self, directory):
+        """Create missing parent directories and assign them to the target owner."""
+        to_create = []
+        current = directory
+
+        while current and not os.path.isdir(current):
+            to_create.append(current)
+            parent = os.path.dirname(current)
+            if parent == current:
+                break
+            current = parent
+
+        for new_dir in reversed(to_create):
+            os.makedirs(new_dir, exist_ok=True)
+            self.module.set_owner_if_different(new_dir, self.owner, False)
+            self.module.set_group_if_different(new_dir, self.group, False)
+            self.module.set_mode_if_different(new_dir, "0755", False)
 
     def run(self):
         """ """
         result = dict(
-            rc=1,
-            failed=True,
+            failed=False,
             changed=False,
         )
 
-        self.checksum = Checksum(self.module)
+        try:
+            self.checksum = Checksum(self.module)
 
-        if self.state == "absent":
-            result = self.clean_unit_files()
+            if self.state == "absent":
+                result = self.clean_unit_files()
+            else:
+                result = self.create_unit_files()
 
-        else:
-            result = self.create_unit_files()
-
-        if os.path.exists(self.tmp_directory):
-            shutil.rmtree(self.tmp_directory)
-
-        return result
+            return result
+        finally:
+            if self.tmp_directory and os.path.exists(self.tmp_directory):
+                shutil.rmtree(self.tmp_directory)
 
     def create_unit_files(self):
         """ """
-        if isinstance(self.drop_ins, list) and len(self.drop_ins) > 0:
+        result = dict(changed=False, failed=False)
 
-            create_directory(directory=self.tmp_directory, mode="0750")
+        has_drop_ins = isinstance(self.drop_ins, list) and len(self.drop_ins) > 0
+        has_unit_file = isinstance(self.unit_file, dict) and len(self.unit_file) > 0
+
+        if has_drop_ins or has_unit_file:
+            self.tmp_directory = tempfile.mkdtemp(prefix="systemd_unit.")
+
+        if has_drop_ins:
             result = self.create_drop_in(self.drop_ins)
 
-        if isinstance(self.unit_file, dict) and len(self.unit_file) > 0:
-
-            create_directory(directory=self.tmp_directory, mode="0750")
+        if has_unit_file:
             result = self.create_unit_file(self.unit_file)
 
         return result
 
     def clean_unit_files(self):
         """ """
+        result = dict(changed=False, failed=False)
+
         if isinstance(self.drop_ins, list) and len(self.drop_ins) > 0:
 
-            service_name = f"/etc/systemd/system/{self.name}.d"
+            service_name = os.path.join(
+                self.drop_in_base_path, f"{self.name}.{self.unit_type}.d"
+            )
 
             for drop_in in self.drop_ins:
                 name = drop_in.get("name")
@@ -263,19 +375,19 @@ class SystemdUnitFile(object):
                     result = self.__remove_unit(unit_file)
 
         if isinstance(self.unit_file, dict) and len(self.unit_file) > 0:
-            unit_file = os.path.join(
-                "/lib/systemd/system", f"{self.name}.{self.unit_type}"
-            )
+            unit_file = os.path.join(self.base_path, f"{self.name}.{self.unit_type}")
             result = self.__remove_unit(unit_file)
 
         return result
 
     def create_drop_in(self, data):
         """ """
-        service_name = f"/etc/systemd/system/{self.name}.d"
+        service_name = os.path.join(
+            self.drop_in_base_path, f"{self.name}.{self.unit_type}.d"
+        )
 
         if not os.path.exists(service_name):
-            create_directory(service_name)
+            self.ensure_directory(service_name)
 
         for drop_in in data:
             name = drop_in.get("name")
@@ -301,7 +413,7 @@ class SystemdUnitFile(object):
 
     def create_unit_file(self, data):
         """ """
-        unit_file = os.path.join("/lib/systemd/system", f"{self.name}.{self.unit_type}")
+        unit_file = os.path.join(self.base_path, f"{self.name}.{self.unit_type}")
         file_temporary = os.path.join(
             self.tmp_directory, f"{self.name}.{self.unit_type}"
         )
@@ -338,7 +450,13 @@ class SystemdUnitFile(object):
 
         if changed:
             new_file = old_checksum is None
+            self.ensure_directory(os.path.dirname(unit_file))
             shutil.move(file_temporary, unit_file)
+
+        owner_changed = self.module.set_owner_if_different(unit_file, self.owner, False)
+        group_changed = self.module.set_group_if_different(unit_file, self.group, False)
+        changed = bool(changed or owner_changed or group_changed)
+        if changed:
             msg = "The unit-file was successfully changed"
 
         if new_file:
@@ -393,11 +511,11 @@ def main():
     """ """
     args = dict(
         unit_type=dict(
-            choose=["service", "socket", "timer"], default="service", type="str"
+            choices=["service", "socket", "timer"], default="service", type="str"
         ),
         name=dict(required=True, type="str"),
         state=dict(
-            choose=[
+            choices=[
                 "absent",
                 "present",
             ],
@@ -407,11 +525,19 @@ def main():
         overwrite=dict(required=False, default=False, type="bool"),
         drop_ins=dict(required=False, default=[], type=list),
         unit_file=dict(required=False, default={}, type=dict),
+        scope=dict(type="str", default="system", choices=["system", "user"]),
+        user=dict(type="str", required=False, default=None),
+        path=dict(type="str", default=None),
+        owner=dict(type="str", default=None),
+        group=dict(type="str", default=None),
     )
 
     module = AnsibleModule(
         argument_spec=args,
         supports_check_mode=False,
+        required_if=[
+            ("scope", "user", ("user",)),
+        ],
     )
 
     k = SystemdUnitFile(module)

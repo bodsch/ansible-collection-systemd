@@ -1,0 +1,2 @@
+# File-rendering tests; no running service manager or root access is required.
+shippable/posix/group1

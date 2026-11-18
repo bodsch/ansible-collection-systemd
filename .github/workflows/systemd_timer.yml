@@ -13,7 +13,8 @@ on:
     paths:
       - 'plugins/modules/systemd_timer.py'
       - 'plugins/module_utils/**'
-      - 'tests/**'
+      - 'tests/unit/plugins/modules/test_systemd_timer.py'
+      - 'tests/integration/targets/systemd_timer/**'
       - '.github/workflows/systemd_timer.yml'
 
   pull_request:
@@ -25,7 +26,8 @@ on:
     paths:
       - 'plugins/modules/systemd_timer.py'
       - 'plugins/module_utils/**'
-      - 'tests/**'
+      - 'tests/unit/plugins/modules/test_systemd_timer.py'
+      - 'tests/integration/targets/systemd_timer/**'
       - '.github/workflows/systemd_timer.yml'
 
 env:
@@ -69,7 +71,8 @@ jobs:
           ansible-test units \
             --local \
             --requirements \
-            --python "${{ matrix.python_version }}"
+            --python "${{ matrix.python_version }}" \
+            systemd_timer
 
   integration:
     name: "integration / python ${{ matrix.python_version }}"

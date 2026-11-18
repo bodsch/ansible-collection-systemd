@@ -3,3 +3,4 @@
 skip_list:
   - name[casing]
   - name[template]
+  - var-naming[no-role-prefix]  # Preserve the systemd_* variable names used by the role templates and handlers.
