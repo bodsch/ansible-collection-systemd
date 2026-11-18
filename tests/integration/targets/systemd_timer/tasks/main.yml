@@ -16,7 +16,8 @@
     suffix: systemd_timer
   register: tmp_dir
 
-- vars:
+- name: test systemd timer file lifecycle and validation
+  vars:
     base_path: "{{ tmp_dir.path }}"
     me: "{{ current_user.stdout }}"
   block:
@@ -172,7 +173,7 @@
           - "'Invalid timespan' in bad_result.msg"
 
     # --- required_if: scope=user requires user ------------------------------
-    - name: scope=user without user must fail
+    - name: scope=user without user must fail  # noqa: args[module]
       bodsch.systemd.systemd_timer:
         name: needsuser
         scope: user

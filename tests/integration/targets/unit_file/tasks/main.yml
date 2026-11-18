@@ -1,0 +1,269 @@
+---
+# Integration tests for bodsch.systemd.unit_file.
+#
+# Scope: pure file rendering for system- and user-scoped units and drop-ins.
+# Everything happens inside a temporary directory without requiring root or
+# a running service manager.
+
+- name: determine the current user
+  ansible.builtin.command: id -un
+  register: current_user
+  changed_when: false
+
+- name: determine the current user's primary group
+  ansible.builtin.command: id -gn
+  register: current_group
+  changed_when: false
+
+- name: create a temporary working directory
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: unit_file
+  register: tmp_dir
+
+- name: test unit file and drop-in lifecycle across scopes
+  vars:
+    base_path: "{{ tmp_dir.path }}"
+    test_user: "{{ current_user.stdout }}"
+    test_group: "{{ current_group.stdout }}"
+  block:
+    - name: create a system-scoped unit with explicit path and ownership
+      bodsch.systemd.unit_file:
+        name: integration
+        path: "{{ base_path }}/system"
+        owner: "{{ test_user }}"
+        group: "{{ test_group }}"
+        unit_file:
+          Unit:
+            Description: Integration test service
+          Service:
+            Type: oneshot
+            ExecStart: /bin/true
+      register: create_result
+
+    - name: read the rendered unit
+      ansible.builtin.slurp:
+        src: "{{ base_path }}/system/integration.service"
+      register: rendered
+
+    - name: inspect the unit's ownership
+      ansible.builtin.stat:
+        path: "{{ base_path }}/system/integration.service"
+      register: unit_stat
+
+    - name: assert the unit was rendered with the requested ownership
+      ansible.builtin.assert:
+        that:
+          - create_result is changed
+          - "'[Unit]' in content"
+          - "'Integration test service' in content"
+          - "'[Service]' in content"
+          - "'ExecStart' in content"
+          - "'/bin/true' in content"
+          - unit_stat.stat.pw_name == test_user
+          - unit_stat.stat.gr_name == test_group
+      vars:
+        content: "{{ rendered.content | b64decode }}"
+
+    - name: create the same unit again
+      bodsch.systemd.unit_file:
+        name: integration
+        path: "{{ base_path }}/system"
+        owner: "{{ test_user }}"
+        group: "{{ test_group }}"
+        unit_file:
+          Unit:
+            Description: Integration test service
+          Service:
+            Type: oneshot
+            ExecStart: /bin/true
+      register: repeat_result
+
+    - name: assert the second run is idempotent
+      ansible.builtin.assert:
+        that:
+          - repeat_result is not changed
+
+    - name: create a user-scoped unit
+      bodsch.systemd.unit_file:
+        name: user-integration
+        scope: user
+        user: "{{ test_user }}"
+        path: "{{ base_path }}/user"
+        unit_file:
+          Unit:
+            Description: User integration service
+      register: user_result
+
+    - name: inspect the user unit and its directory
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ base_path }}/user"
+        - "{{ base_path }}/user/user-integration.service"
+      register: user_stats
+
+    - name: assert user scope uses the target user's ownership
+      ansible.builtin.assert:
+        that:
+          - user_result is changed
+          - item.stat.exists
+          - item.stat.pw_name == test_user
+          - item.stat.gr_name == test_group
+      loop: "{{ user_stats.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: create a user-scoped drop-in
+      bodsch.systemd.unit_file:
+        name: user-integration
+        scope: user
+        user: "{{ test_user }}"
+        path: "{{ base_path }}/user"
+        drop_ins:
+          - name: override
+            Service:
+              Environment: INTEGRATION=1
+      register: drop_in_result
+
+    - name: inspect the rendered drop-in
+      ansible.builtin.slurp:
+        src: "{{ base_path }}/user/user-integration.service.d/override.conf"
+      register: drop_in
+
+    - name: inspect the drop-in's ownership
+      ansible.builtin.stat:
+        path: "{{ base_path }}/user/user-integration.service.d/override.conf"
+      register: drop_in_stat
+
+    - name: assert the drop-in was created
+      ansible.builtin.assert:
+        that:
+          - drop_in_result is changed
+          - "'[Service]' in (drop_in.content | b64decode)"
+          - "'INTEGRATION=1' in (drop_in.content | b64decode)"
+          - drop_in_stat.stat.pw_name == test_user
+          - drop_in_stat.stat.gr_name == test_group
+
+    - name: create the same drop-in again
+      bodsch.systemd.unit_file:
+        name: user-integration
+        scope: user
+        user: "{{ test_user }}"
+        path: "{{ base_path }}/user"
+        drop_ins:
+          - name: override
+            Service:
+              Environment: INTEGRATION=1
+      register: repeat_drop_in
+
+    - name: assert the drop-in is idempotent
+      ansible.builtin.assert:
+        that:
+          - repeat_drop_in is not changed
+
+    - name: reject user scope without a user  # noqa: args[module]
+      bodsch.systemd.unit_file:
+        name: missing-user
+        scope: user
+        path: "{{ base_path }}/user"
+      register: missing_user
+      ignore_errors: true
+
+    - name: assert the missing user was rejected
+      ansible.builtin.assert:
+        that:
+          - missing_user is failed
+          - "'user' in missing_user.msg"
+
+    - name: remove the user-scoped drop-in
+      bodsch.systemd.unit_file:
+        name: user-integration
+        scope: user
+        user: "{{ test_user }}"
+        path: "{{ base_path }}/user"
+        state: absent
+        drop_ins:
+          - name: override
+            state: absent
+      register: remove_drop_in
+
+    - name: inspect the removed drop-in
+      ansible.builtin.stat:
+        path: "{{ base_path }}/user/user-integration.service.d/override.conf"
+      register: removed_drop_in
+
+    - name: assert the drop-in was removed
+      ansible.builtin.assert:
+        that:
+          - remove_drop_in is changed
+          - not removed_drop_in.stat.exists
+
+    - name: remove the user-scoped unit
+      bodsch.systemd.unit_file:
+        name: user-integration
+        scope: user
+        user: "{{ test_user }}"
+        path: "{{ base_path }}/user"
+        state: absent
+        unit_file:
+          Unit:
+            Description: User integration service
+      register: remove_user_unit
+
+    - name: inspect the removed user unit
+      ansible.builtin.stat:
+        path: "{{ base_path }}/user/user-integration.service"
+      register: removed_user_unit
+
+    - name: assert the user unit was removed
+      ansible.builtin.assert:
+        that:
+          - remove_user_unit is changed
+          - not removed_user_unit.stat.exists
+
+    - name: remove the system-scoped unit
+      bodsch.systemd.unit_file:
+        name: integration
+        path: "{{ base_path }}/system"
+        owner: "{{ test_user }}"
+        group: "{{ test_group }}"
+        state: absent
+        unit_file:
+          Unit:
+            Description: Integration test service
+      register: remove_result
+
+    - name: inspect the removed unit
+      ansible.builtin.stat:
+        path: "{{ base_path }}/system/integration.service"
+      register: removed_stat
+
+    - name: assert the unit was removed
+      ansible.builtin.assert:
+        that:
+          - remove_result is changed
+          - not removed_stat.stat.exists
+
+    - name: remove the same unit again
+      bodsch.systemd.unit_file:
+        name: integration
+        path: "{{ base_path }}/system"
+        owner: "{{ test_user }}"
+        group: "{{ test_group }}"
+        state: absent
+        unit_file:
+          Unit:
+            Description: Integration test service
+      register: remove_again
+
+    - name: assert the second removal is idempotent
+      ansible.builtin.assert:
+        that:
+          - remove_again is not changed
+
+  always:
+    - name: clean up the temporary directory
+      ansible.builtin.file:
+        path: "{{ tmp_dir.path }}"
+        state: absent
